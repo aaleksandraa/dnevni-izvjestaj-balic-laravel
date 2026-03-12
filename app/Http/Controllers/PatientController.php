@@ -126,12 +126,8 @@ class PatientController extends Controller
 
         $paymentByMethod = (clone $baseQuery)
             ->whereIn('payment_status', ['placeno', 'djelimicno_placeno'])
-            ->selectRaw("
-                COALESCE(NULLIF(payment_method, ''), 'nepoznato') as method_key,
-                COUNT(*) as items_count,
-                COALESCE(SUM(paid_amount), 0) as paid_amount
-            ")
-            ->groupByRaw("COALESCE(NULLIF(payment_method, ''), 'nepoznato')")
+            ->selectRaw('payment_method, COUNT(*) as items_count, COALESCE(SUM(paid_amount), 0) as paid_amount')
+            ->groupBy('payment_method')
             ->orderByDesc('paid_amount')
             ->get()
             ->map(function ($row): array {
@@ -143,7 +139,8 @@ class PatientController extends Controller
                     'nepoznato' => 'Nepoznato',
                 ];
 
-                $key = (string) $row->method_key;
+                $method = trim((string) ($row->payment_method ?? ''));
+                $key = $method !== '' ? $method : 'nepoznato';
 
                 return [
                     'method' => $labels[$key] ?? ucfirst($key),
