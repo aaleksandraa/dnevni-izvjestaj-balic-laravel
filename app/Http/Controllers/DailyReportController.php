@@ -22,6 +22,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class DailyReportController extends Controller
@@ -253,15 +254,16 @@ class DailyReportController extends Controller
 
         $validated = $request->validated();
         $actor = $request->user();
-        $patient = Patient::query()->findOrFail((int) $validated['patient_id']);
+        [$patient, $patientCreated] = $this->resolvePatientFromInput($validated);
 
         [$paymentStatus, $paidAmount, $remainingAmount, $paymentMethod, $unpaidReason] = $this->normalizePaymentInput($validated);
+        $isNewPatient = $request->boolean('is_new_patient') || $patientCreated;
 
         $item = DailyReportItem::query()->create([
             'daily_report_id' => $dailyReport->id,
             'patient_id' => $patient->id,
             'patient_full_name' => $patient->full_name,
-            'is_new_patient' => (bool) ($validated['is_new_patient'] ?? false),
+            'is_new_patient' => $isNewPatient,
             'service_id' => $validated['service_id'],
             'doctor_id' => $validated['doctor_id'] ?: null,
             'item_price' => (float) $validated['item_price'],
@@ -348,18 +350,19 @@ class DailyReportController extends Controller
 
         $validated = $request->validated();
         $actor = $request->user();
-        $patient = Patient::query()->findOrFail((int) $validated['patient_id']);
+        [$patient, $patientCreated] = $this->resolvePatientFromInput($validated);
         $oldValues = [
             'report' => $this->reportItemAuditContext($dailyReport),
             'item' => $this->serviceItemAuditPayload($item),
         ];
 
         [$paymentStatus, $paidAmount, $remainingAmount, $paymentMethod, $unpaidReason] = $this->normalizePaymentInput($validated);
+        $isNewPatient = $request->boolean('is_new_patient') || $patientCreated;
 
         $item->update([
             'patient_id' => $patient->id,
             'patient_full_name' => $patient->full_name,
-            'is_new_patient' => (bool) ($validated['is_new_patient'] ?? false),
+            'is_new_patient' => $isNewPatient,
             'service_id' => $validated['service_id'],
             'doctor_id' => $validated['doctor_id'] ?: null,
             'item_price' => (float) $validated['item_price'],
@@ -629,6 +632,59 @@ class DailyReportController extends Controller
         if ((int) $item->daily_report_id !== (int) $dailyReport->id) {
             abort(404);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $validated
+     * @return array{Patient, bool}
+     */
+    private function resolvePatientFromInput(array $validated): array
+    {
+        $patientId = isset($validated['patient_id']) ? (int) $validated['patient_id'] : 0;
+        if ($patientId > 0) {
+            $patient = Patient::query()
+                ->where('id', $patientId)
+                ->where('is_active', true)
+                ->firstOrFail();
+
+            return [$patient, false];
+        }
+
+        $patientName = trim((string) ($validated['patient_name'] ?? ''));
+        if ($patientName === '') {
+            throw ValidationException::withMessages([
+                'patient_name' => 'Unesite ime pacijenta ili odaberite postojeceg pacijenta.',
+            ]);
+        }
+        $patientName = (string) Str::of($patientName)->squish();
+        $normalizedInput = $this->normalizePatientName($patientName);
+
+        $existingPatient = Patient::query()
+            ->where('is_active', true)
+            ->get(['id', 'full_name', 'is_active'])
+            ->first(function (Patient $patient) use ($normalizedInput): bool {
+                return $this->normalizePatientName((string) $patient->full_name) === $normalizedInput;
+            });
+
+        if ($existingPatient !== null) {
+            return [$existingPatient, false];
+        }
+
+        $createdPatient = Patient::query()->create([
+            'full_name' => $patientName,
+            'is_active' => true,
+        ]);
+
+        return [$createdPatient, true];
+    }
+
+    private function normalizePatientName(string $value): string
+    {
+        return (string) Str::of($value)
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9\\s]+/', ' ')
+            ->squish();
     }
 
     /**

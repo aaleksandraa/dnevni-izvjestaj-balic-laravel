@@ -299,4 +299,105 @@ class DailyReportWorkflowTest extends TestCase
             ->assertSee('Nalazi danas')
             ->assertSee('140,00 KM');
     }
+
+    public function test_nurse_can_add_item_by_typing_new_patient_name(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $service = Service::factory()->create([
+            'service_category_id' => ServiceCategory::factory()->create()->id,
+            'is_active' => true,
+        ]);
+        $doctor = StaffMember::factory()->create([
+            'role_type' => 'primarni_doktor',
+            'is_active' => true,
+        ]);
+        $doctor->locations()->sync([$location->id]);
+
+        $report = DailyReport::factory()->create([
+            'report_date' => now()->toDateString(),
+            'location_id' => $location->id,
+            'status' => 'u_radu',
+            'created_by_user_id' => $nurse->id,
+        ]);
+
+        $this->actingAs($nurse)
+            ->post(route('daily-reports.items.store', $report), [
+                'patient_name' => 'Nova Pacijentica',
+                'service_id' => $service->id,
+                'doctor_id' => $doctor->id,
+                'item_price' => 90,
+                'payment_status' => 'placeno',
+                'payment_method' => 'fiskalno',
+                'paid_amount' => 90,
+                'notes' => 'Unos po imenu',
+            ])
+            ->assertRedirect(route('daily-reports.show', $report));
+
+        $patient = Patient::query()
+            ->where('full_name', 'Nova Pacijentica')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('daily_report_items', [
+            'daily_report_id' => $report->id,
+            'patient_id' => $patient->id,
+            'patient_full_name' => 'Nova Pacijentica',
+            'is_new_patient' => 1,
+        ]);
+    }
+
+    public function test_typing_existing_patient_without_diacritics_reuses_existing_patient(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $service = Service::factory()->create([
+            'service_category_id' => ServiceCategory::factory()->create()->id,
+            'is_active' => true,
+        ]);
+        $doctor = StaffMember::factory()->create([
+            'role_type' => 'primarni_doktor',
+            'is_active' => true,
+        ]);
+        $doctor->locations()->sync([$location->id]);
+
+        $existingPatient = Patient::factory()->create([
+            'full_name' => 'Asja Colic',
+            'is_active' => true,
+        ]);
+
+        $report = DailyReport::factory()->create([
+            'report_date' => now()->toDateString(),
+            'location_id' => $location->id,
+            'status' => 'u_radu',
+            'created_by_user_id' => $nurse->id,
+        ]);
+
+        $this->actingAs($nurse)
+            ->post(route('daily-reports.items.store', $report), [
+                'patient_name' => 'asja colic',
+                'service_id' => $service->id,
+                'doctor_id' => $doctor->id,
+                'item_price' => 75,
+                'payment_status' => 'placeno',
+                'payment_method' => 'fiskalno',
+                'paid_amount' => 75,
+            ])
+            ->assertRedirect(route('daily-reports.show', $report));
+
+        $this->assertDatabaseCount('patients', 1);
+        $this->assertDatabaseHas('daily_report_items', [
+            'daily_report_id' => $report->id,
+            'patient_id' => $existingPatient->id,
+            'patient_full_name' => 'Asja Colic',
+            'is_new_patient' => 0,
+        ]);
+    }
 }

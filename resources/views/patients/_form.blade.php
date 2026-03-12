@@ -1,35 +1,36 @@
 @php
-    $isEdit = isset($patient);
-    $activeValue = old('is_active', $patient->is_active ?? true);
+    $managedPatient = $patient ?? null;
+    $isEdit = $managedPatient !== null;
+    $activeValue = old('is_active', $managedPatient?->is_active ?? true);
 @endphp
 
 <div class="space-y-6">
     <div class="grid gap-6 md:grid-cols-2">
         <div>
             <x-input-label for="full_name" value="Ime i prezime" />
-            <x-text-input id="full_name" name="full_name" type="text" class="mt-1 block w-full" :value="old('full_name', $patient->full_name ?? '')" required autofocus />
+            <x-text-input id="full_name" name="full_name" type="text" class="mt-1 block w-full" :value="old('full_name', $managedPatient?->full_name ?? '')" required autofocus />
             <x-input-error class="mt-2" :messages="$errors->get('full_name')" />
         </div>
         <div>
             <x-input-label for="date_of_birth" value="Datum rodjenja" />
-            <x-text-input id="date_of_birth" name="date_of_birth" type="date" class="mt-1 block w-full" :value="old('date_of_birth', $patient?->date_of_birth?->toDateString())" />
+            <x-text-input id="date_of_birth" name="date_of_birth" type="date" class="mt-1 block w-full" :value="old('date_of_birth', $managedPatient?->date_of_birth?->toDateString())" />
             <x-input-error class="mt-2" :messages="$errors->get('date_of_birth')" />
         </div>
         <div>
             <x-input-label for="phone" value="Telefon" />
-            <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $patient->phone ?? '')" />
+            <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $managedPatient?->phone ?? '')" />
             <x-input-error class="mt-2" :messages="$errors->get('phone')" />
         </div>
         <div>
             <x-input-label for="email" value="Email" />
-            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $patient->email ?? '')" />
+            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $managedPatient?->email ?? '')" />
             <x-input-error class="mt-2" :messages="$errors->get('email')" />
         </div>
     </div>
 
     <div>
         <x-input-label for="notes" value="Napomena" />
-        <textarea id="notes" name="notes" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('notes', $patient->notes ?? '') }}</textarea>
+        <textarea id="notes" name="notes" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('notes', $managedPatient?->notes ?? '') }}</textarea>
         <x-input-error class="mt-2" :messages="$errors->get('notes')" />
     </div>
 

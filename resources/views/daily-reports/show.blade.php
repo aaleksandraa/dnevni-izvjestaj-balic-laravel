@@ -110,19 +110,26 @@
                     <form method="POST" action="{{ route('daily-reports.items.store', $dailyReport) }}" class="mt-5 space-y-4">
                         @csrf
                         <div>
-                            <x-input-label for="patient_id" value="Pacijent" />
-                            <select id="patient_id" name="patient_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
-                                <option value="">Odaberi pacijenta</option>
-                                @foreach ($patients as $patientOption)
-                                    <option value="{{ $patientOption->id }}" @selected((int) old('patient_id', 0) === $patientOption->id)>
-                                        {{ $patientOption->full_name }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            <x-input-label for="patient_name" value="Pacijent (pisanje + sugestije)" />
+                            <div class="relative">
+                                <x-text-input
+                                    id="patient_name"
+                                    name="patient_name"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                    :value="old('patient_name', '')"
+                                    placeholder="Upisite ime pacijenta..."
+                                    autocomplete="off"
+                                    :disabled="$isLocked"
+                                />
+                                <input type="hidden" id="patient_id" name="patient_id" value="{{ old('patient_id', '') }}">
+                                <div id="patient_suggestions" class="absolute z-30 mt-1 hidden max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"></div>
+                            </div>
                             <p class="mt-1 text-xs text-gray-500">
-                                Ne vidis pacijenta? Dodaj ga kroz modul
-                                <a href="{{ route('patients.create') }}" target="_blank" class="font-semibold text-indigo-600 hover:underline">Pacijenti</a>.
+                                Ako odaberete predlozenog pacijenta, bice vezan postojeci zapis.
+                                Ako unesete novo ime koje ne postoji, sistem ce automatski kreirati novog pacijenta.
                             </p>
+                            <x-input-error class="mt-2" :messages="$errors->get('patient_name')" />
                             <x-input-error class="mt-2" :messages="$errors->get('patient_id')" />
                         </div>
                         <div class="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
@@ -538,6 +545,164 @@
             const unpaidReasonWrap = document.getElementById('unpaid_reason_wrap');
             const findingSelect = document.getElementById('finding_id');
             const unitPriceInput = document.getElementById('unit_price');
+            const patientNameInput = document.getElementById('patient_name');
+            const patientIdInput = document.getElementById('patient_id');
+            const patientSuggestions = document.getElementById('patient_suggestions');
+            const patientsIndex = @json(
+                $patients->map(fn ($patient) => [
+                    'id' => (int) $patient->id,
+                    'name' => (string) $patient->full_name,
+                ])->values()
+            );
+
+            let highlightedPatientIndex = -1;
+            let currentPatientMatches = [];
+
+            const normalizeText = (value) => {
+                let normalized = String(value || '').toLowerCase();
+                try {
+                    normalized = normalized.normalize('NFD');
+                } catch (error) {
+                    // ignore normalize errors in older browsers
+                }
+                return normalized
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/đ/g, 'dj')
+                    .replace(/[^a-z0-9\s]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            };
+
+            const patientLookup = patientsIndex.map((patient) => {
+                const normalizedName = normalizeText(patient.name);
+                return {
+                    ...patient,
+                    normalizedName,
+                    tokens: normalizedName.split(' ').filter(Boolean),
+                };
+            });
+            const escapeHtml = (value) => String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+
+            const resolveExactPatientId = (name) => {
+                const normalizedInput = normalizeText(name);
+                const exactMatch = patientLookup.find((patient) => patient.normalizedName === normalizedInput);
+                return exactMatch ? String(exactMatch.id) : '';
+            };
+
+            const patientScore = (patient, normalizedQuery, queryTokens) => {
+                if (!normalizedQuery) {
+                    return 0;
+                }
+
+                let score = 0;
+                if (patient.normalizedName === normalizedQuery) {
+                    score += 1000;
+                }
+                if (patient.normalizedName.startsWith(normalizedQuery)) {
+                    score += 700;
+                }
+                if (patient.normalizedName.includes(normalizedQuery)) {
+                    score += 500;
+                }
+
+                if (queryTokens.length > 0 && queryTokens.every((token) => patient.normalizedName.includes(token))) {
+                    score += 250;
+                }
+
+                queryTokens.forEach((token) => {
+                    if (patient.tokens.some((part) => part.startsWith(token))) {
+                        score += 120;
+                    } else if (patient.normalizedName.includes(token)) {
+                        score += 70;
+                    }
+                });
+
+                return score;
+            };
+
+            const renderPatientSuggestions = () => {
+                if (!patientSuggestions || !patientNameInput || !patientIdInput) {
+                    return;
+                }
+
+                const rawQuery = patientNameInput.value.trim();
+                const normalizedQuery = normalizeText(rawQuery);
+                patientIdInput.value = resolveExactPatientId(rawQuery);
+
+                if (normalizedQuery.length < 2) {
+                    patientSuggestions.classList.add('hidden');
+                    patientSuggestions.innerHTML = '';
+                    currentPatientMatches = [];
+                    highlightedPatientIndex = -1;
+                    return;
+                }
+
+                const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+                const matches = patientLookup
+                    .map((patient) => ({
+                        patient,
+                        score: patientScore(patient, normalizedQuery, queryTokens),
+                    }))
+                    .filter((row) => row.score > 0)
+                    .sort((a, b) => {
+                        if (b.score !== a.score) {
+                            return b.score - a.score;
+                        }
+                        return a.patient.name.localeCompare(b.patient.name, 'bs');
+                    })
+                    .slice(0, 8)
+                    .map((row) => row.patient);
+
+                currentPatientMatches = matches;
+                highlightedPatientIndex = -1;
+
+                if (matches.length === 0) {
+                    patientSuggestions.innerHTML = '<div class="px-3 py-2 text-xs text-gray-500">Nema podudaranja. Unos ce kreirati novog pacijenta.</div>';
+                    patientSuggestions.classList.remove('hidden');
+                    return;
+                }
+
+                patientSuggestions.innerHTML = matches.map((patient, index) => {
+                    const safeName = escapeHtml(patient.name);
+                    return `<button type="button" class="js-patient-suggestion flex w-full items-center justify-between border-t border-gray-100 px-3 py-2 text-left text-sm hover:bg-indigo-50" data-index="${index}"><span>${safeName}</span><span class="text-xs text-gray-400">postojeci</span></button>`;
+                }).join('');
+
+                patientSuggestions.classList.remove('hidden');
+            };
+
+            const hidePatientSuggestions = () => {
+                if (!patientSuggestions) {
+                    return;
+                }
+                patientSuggestions.classList.add('hidden');
+                highlightedPatientIndex = -1;
+            };
+
+            const applyPatientSelection = (patient) => {
+                if (!patientNameInput || !patientIdInput) {
+                    return;
+                }
+
+                patientNameInput.value = patient.name;
+                patientIdInput.value = String(patient.id);
+                hidePatientSuggestions();
+            };
+
+            const highlightSuggestion = () => {
+                if (!patientSuggestions) {
+                    return;
+                }
+
+                const rows = Array.from(patientSuggestions.querySelectorAll('.js-patient-suggestion'));
+                rows.forEach((row, index) => {
+                    row.classList.toggle('bg-indigo-100', index === highlightedPatientIndex);
+                });
+            };
 
             const togglePaymentBlocks = () => {
                 const status = paymentStatusSelect?.value || 'neplaceno';
@@ -579,6 +744,60 @@
                         unitPriceInput.value = price;
                     }
                 });
+            }
+
+            if (patientNameInput && patientIdInput && patientSuggestions) {
+                patientNameInput.addEventListener('input', renderPatientSuggestions);
+                patientNameInput.addEventListener('focus', renderPatientSuggestions);
+                patientNameInput.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        patientIdInput.value = resolveExactPatientId(patientNameInput.value);
+                        hidePatientSuggestions();
+                    }, 120);
+                });
+                patientNameInput.addEventListener('keydown', (event) => {
+                    if (patientSuggestions.classList.contains('hidden') || currentPatientMatches.length === 0) {
+                        return;
+                    }
+
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        highlightedPatientIndex = (highlightedPatientIndex + 1) % currentPatientMatches.length;
+                        highlightSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        highlightedPatientIndex = highlightedPatientIndex <= 0
+                            ? currentPatientMatches.length - 1
+                            : highlightedPatientIndex - 1;
+                        highlightSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'Enter' && highlightedPatientIndex >= 0) {
+                        event.preventDefault();
+                        applyPatientSelection(currentPatientMatches[highlightedPatientIndex]);
+                    }
+                });
+
+                patientSuggestions.addEventListener('mousedown', (event) => {
+                    const target = event.target.closest('.js-patient-suggestion');
+                    if (!target) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    const selectedIndex = Number(target.dataset.index ?? -1);
+                    const selectedPatient = currentPatientMatches[selectedIndex];
+                    if (!selectedPatient) {
+                        return;
+                    }
+                    applyPatientSelection(selectedPatient);
+                });
+
+                renderPatientSuggestions();
             }
 
             if (paymentStatusSelect) {
