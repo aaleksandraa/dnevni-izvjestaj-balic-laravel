@@ -39,6 +39,7 @@ class DailyReportItemFactory extends Factory
             'daily_report_id' => DailyReport::factory(),
             'patient_id' => Patient::factory(),
             'patient_full_name' => fake()->name(),
+            'is_new_patient' => false,
             'service_id' => Service::factory(),
             'doctor_id' => StaffMember::factory(),
             'item_price' => $itemPrice,

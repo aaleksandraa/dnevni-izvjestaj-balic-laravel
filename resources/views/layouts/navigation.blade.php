@@ -29,20 +29,8 @@
                             {{ __('Nalazi') }}
                         </x-nav-link>
 
-                        <x-nav-link :href="route('staff-members.index')" :active="request()->routeIs('staff-members.*')">
-                            {{ __('Medicinski tim') }}
-                        </x-nav-link>
-
-                        <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
-                            {{ __('Korisnici') }}
-                        </x-nav-link>
-
-                        <x-nav-link :href="route('report-email-settings.index')" :active="request()->routeIs('report-email-settings.*')">
-                            {{ __('Email primaoci') }}
-                        </x-nav-link>
-
-                        <x-nav-link :href="route('audit-logs.index')" :active="request()->routeIs('audit-logs.*')">
-                            {{ __('Audit log') }}
+                        <x-nav-link :href="route('settings.index')" :active="request()->routeIs('settings.*') || request()->routeIs('staff-members.*') || request()->routeIs('users.*') || request()->routeIs('report-email-settings.*') || request()->routeIs('audit-logs.*')">
+                            {{ __('Podesavanja') }}
                         </x-nav-link>
                     @endif
 
@@ -123,20 +111,8 @@
                     {{ __('Nalazi') }}
                 </x-responsive-nav-link>
 
-                <x-responsive-nav-link :href="route('staff-members.index')" :active="request()->routeIs('staff-members.*')">
-                    {{ __('Medicinski tim') }}
-                </x-responsive-nav-link>
-
-                <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
-                    {{ __('Korisnici') }}
-                </x-responsive-nav-link>
-
-                <x-responsive-nav-link :href="route('report-email-settings.index')" :active="request()->routeIs('report-email-settings.*')">
-                    {{ __('Email primaoci') }}
-                </x-responsive-nav-link>
-
-                <x-responsive-nav-link :href="route('audit-logs.index')" :active="request()->routeIs('audit-logs.*')">
-                    {{ __('Audit log') }}
+                <x-responsive-nav-link :href="route('settings.index')" :active="request()->routeIs('settings.*') || request()->routeIs('staff-members.*') || request()->routeIs('users.*') || request()->routeIs('report-email-settings.*') || request()->routeIs('audit-logs.*')">
+                    {{ __('Podesavanja') }}
                 </x-responsive-nav-link>
             @endif
 

@@ -156,4 +156,115 @@ class PatientSegmentTest extends TestCase
         $this->get(route('patients.index'))
             ->assertRedirect(route('login'));
     }
+
+    public function test_nurse_can_add_payment_from_patient_ledger_to_todays_report(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $service = Service::factory()->create([
+            'service_category_id' => ServiceCategory::factory()->create()->id,
+            'is_active' => true,
+            'base_price' => 150,
+        ]);
+        $doctor = StaffMember::factory()->create([
+            'role_type' => 'primarni_doktor',
+            'is_active' => true,
+        ]);
+        $doctor->locations()->sync([$location->id]);
+        $patient = Patient::factory()->create([
+            'full_name' => 'Pacijent Placanje',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($nurse)
+            ->post(route('patients.payments.store', $patient), [
+                'report_date' => now()->format('d.m.Y'),
+                'location_id' => $location->id,
+                'service_id' => $service->id,
+                'doctor_id' => $doctor->id,
+                'item_price' => 150,
+                'payment_status' => 'placeno',
+                'payment_method' => 'fiskalno',
+                'paid_amount' => 150,
+                'notes' => 'Dodano iz kartona',
+            ])
+            ->assertRedirect(route('patients.show', $patient));
+
+        $report = DailyReport::query()
+            ->whereDate('report_date', now()->toDateString())
+            ->where('location_id', $location->id)
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('daily_report_items', [
+            'daily_report_id' => $report->id,
+            'patient_id' => $patient->id,
+            'patient_full_name' => 'Pacijent Placanje',
+            'service_id' => $service->id,
+            'doctor_id' => $doctor->id,
+            'payment_status' => 'placeno',
+            'payment_method' => 'fiskalno',
+            'paid_amount' => 150,
+            'remaining_amount' => 0,
+        ]);
+    }
+
+    public function test_payment_from_patient_ledger_rejects_non_today_date(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $service = Service::factory()->create([
+            'service_category_id' => ServiceCategory::factory()->create()->id,
+            'is_active' => true,
+        ]);
+        $doctor = StaffMember::factory()->create([
+            'role_type' => 'primarni_doktor',
+            'is_active' => true,
+        ]);
+        $doctor->locations()->sync([$location->id]);
+        $patient = Patient::factory()->create([
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($nurse)
+            ->post(route('patients.payments.store', $patient), [
+                'report_date' => now()->subDay()->format('d.m.Y'),
+                'location_id' => $location->id,
+                'service_id' => $service->id,
+                'doctor_id' => $doctor->id,
+                'item_price' => 100,
+                'payment_status' => 'placeno',
+                'payment_method' => 'fiskalno',
+                'paid_amount' => 100,
+            ])
+            ->assertSessionHasErrors(['report_date']);
+    }
+
+    public function test_patient_ledger_displays_european_date_format_in_filters(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $patient = Patient::factory()->create([
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($nurse)
+            ->get(route('patients.show', [
+                'patient' => $patient,
+                'date_from' => '03/26/2026',
+                'date_to' => '03/26/2026',
+            ]))
+            ->assertOk()
+            ->assertSee('value="26.03.2026"', false);
+    }
 }

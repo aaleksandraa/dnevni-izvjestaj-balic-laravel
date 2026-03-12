@@ -43,11 +43,11 @@
                     </div>
                     <div>
                         <x-input-label for="date_from" value="Datum od" />
-                        <x-text-input id="date_from" name="date_from" type="date" class="mt-1 block w-full" :value="$dateFrom" />
+                        <x-text-input id="date_from" name="date_from" type="text" class="mt-1 block w-full" :value="$dateFrom" placeholder="dd.mm.gggg" inputmode="numeric" />
                     </div>
                     <div>
                         <x-input-label for="date_to" value="Datum do" />
-                        <x-text-input id="date_to" name="date_to" type="date" class="mt-1 block w-full" :value="$dateTo" />
+                        <x-text-input id="date_to" name="date_to" type="text" class="mt-1 block w-full" :value="$dateTo" placeholder="dd.mm.gggg" inputmode="numeric" />
                     </div>
                     <div class="flex items-end gap-3">
                         <x-primary-button>Filtriraj</x-primary-button>

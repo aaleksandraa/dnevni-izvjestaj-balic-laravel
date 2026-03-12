@@ -78,6 +78,12 @@
                         >
                             Otvori Pacijente
                         </a>
+                        <a
+                            href="{{ route('settings.index') }}"
+                            class="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            Otvori Podesavanja
+                        </a>
                     </div>
                 </div>
             @endif

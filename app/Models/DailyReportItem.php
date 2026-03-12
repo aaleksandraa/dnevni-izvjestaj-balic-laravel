@@ -14,6 +14,7 @@ class DailyReportItem extends Model
         'daily_report_id',
         'patient_id',
         'patient_full_name',
+        'is_new_patient',
         'service_id',
         'doctor_id',
         'item_price',
@@ -32,6 +33,7 @@ class DailyReportItem extends Model
             'item_price' => 'decimal:2',
             'paid_amount' => 'decimal:2',
             'remaining_amount' => 'decimal:2',
+            'is_new_patient' => 'boolean',
         ];
     }
 

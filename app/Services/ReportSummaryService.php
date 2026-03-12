@@ -5,24 +5,107 @@ namespace App\Services;
 use App\Models\DailyReport;
 use App\Models\DailyReportFindingItem;
 use App\Models\DailyReportItem;
+use App\Models\Service;
+use App\Models\StaffMember;
 use Illuminate\Support\Carbon;
 
 class ReportSummaryService
 {
+    public function __construct(
+        private readonly DailyEmailSummaryConfigurationService $configurationService
+    ) {}
+
     /**
-     * @return array<string, float|int|string>
+     * @return array<string, mixed>
      */
     public function daily(DailyReport $dailyReport): array
     {
-        $servicesCount = (int) $dailyReport->items()->count();
-        $servicesAmount = (float) $dailyReport->items()->sum('item_price');
-        $paidAmount = (float) $dailyReport->items()->sum('paid_amount');
-        $remainingAmount = (float) $dailyReport->items()->sum('remaining_amount');
-        $unpaidItemsCount = (int) $dailyReport->items()->where('payment_status', 'neplaceno')->count();
-        $partialItemsCount = (int) $dailyReport->items()->where('payment_status', 'djelimicno_placeno')->count();
+        $configuration = $this->configurationService->get();
+
+        $items = $dailyReport->items()
+            ->with(['service:id,name', 'doctor:id,full_name,role_type'])
+            ->get();
+
+        $servicesCount = (int) $items->count();
+        $servicesAmount = (float) $items->sum('item_price');
+        $paidAmount = (float) $items->sum('paid_amount');
+        $remainingAmount = (float) $items->sum('remaining_amount');
+        $unpaidItemsCount = (int) $items->where('payment_status', 'neplaceno')->count();
+        $partialItemsCount = (int) $items->where('payment_status', 'djelimicno_placeno')->count();
 
         $findingsCount = (int) $dailyReport->findingItems()->sum('quantity');
         $findingsAmount = (float) $dailyReport->findingItems()->sum('total_price');
+
+        $selectedServices = Service::query()
+            ->whereIn('id', $configuration['service_ids'])
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $bySignificantService = $selectedServices
+            ->map(function (Service $service) use ($items): array {
+                return [
+                    'service_id' => (int) $service->id,
+                    'name' => $service->name,
+                    'count' => (int) $items->where('service_id', $service->id)->count(),
+                ];
+            })
+            ->all();
+
+        $significantServicesTotalCount = array_reduce(
+            $bySignificantService,
+            static fn (int $carry, array $row): int => $carry + (int) $row['count'],
+            0
+        );
+
+        $selectedCollaborators = StaffMember::query()
+            ->whereIn('id', $configuration['collaborator_ids'])
+            ->where('is_active', true)
+            ->where('role_type', 'saradnik')
+            ->orderBy('full_name')
+            ->get(['id', 'full_name']);
+
+        $byCollaborator = $selectedCollaborators
+            ->map(function (StaffMember $staffMember) use ($items): array {
+                return [
+                    'staff_member_id' => (int) $staffMember->id,
+                    'name' => $staffMember->full_name,
+                    'count' => (int) $items->where('doctor_id', $staffMember->id)->count(),
+                ];
+            })
+            ->all();
+
+        $collaboratorsTotalCount = array_reduce(
+            $byCollaborator,
+            static fn (int $carry, array $row): int => $carry + (int) $row['count'],
+            0
+        );
+
+        $selectedLeadDoctors = StaffMember::query()
+            ->whereIn('id', $configuration['lead_doctor_ids'])
+            ->where('is_active', true)
+            ->whereIn('role_type', ['primarni_doktor', 'sekundarni_doktor'])
+            ->orderBy('full_name')
+            ->get(['id', 'full_name']);
+
+        $byLeadDoctor = $selectedLeadDoctors
+            ->map(function (StaffMember $staffMember) use ($items): array {
+                return [
+                    'staff_member_id' => (int) $staffMember->id,
+                    'name' => $staffMember->full_name,
+                    'count' => (int) $items->where('doctor_id', $staffMember->id)->count(),
+                ];
+            })
+            ->all();
+
+        $leadDoctorsTotalCount = array_reduce(
+            $byLeadDoctor,
+            static fn (int $carry, array $row): int => $carry + (int) $row['count'],
+            0
+        );
+
+        $newPatientsCount = (int) $items->where('is_new_patient', true)->count();
 
         return [
             'report_date' => $dailyReport->report_date->toDateString(),
@@ -37,6 +120,14 @@ class ReportSummaryService
             'findings_count' => $findingsCount,
             'findings_amount' => round($findingsAmount, 2),
             'grand_total' => round($servicesAmount + $findingsAmount, 2),
+            'collaborators_total_count' => $collaboratorsTotalCount,
+            'by_collaborator' => $byCollaborator,
+            'lead_doctors_total_count' => $leadDoctorsTotalCount,
+            'by_lead_doctor' => $byLeadDoctor,
+            'significant_services_total_count' => $significantServicesTotalCount,
+            'by_significant_service' => $bySignificantService,
+            'include_new_patients' => (bool) $configuration['include_new_patients'],
+            'new_patients_count' => $newPatientsCount,
         ];
     }
 

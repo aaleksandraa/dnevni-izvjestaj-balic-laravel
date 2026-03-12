@@ -7,7 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreDailyReportItemRequest extends FormRequest
+class StorePatientPaymentRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -32,10 +32,11 @@ class StoreDailyReportItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'patient_id' => ['required', 'integer', Rule::exists('patients', 'id')->where('is_active', true)],
+            'report_date' => ['required', 'string'],
+            'location_id' => ['required', 'integer', Rule::exists('locations', 'id')->where('is_active', true)],
+            'service_id' => ['required', 'integer', Rule::exists('services', 'id')->where('is_active', true)],
+            'doctor_id' => ['nullable', 'integer', Rule::exists('staff_members', 'id')->where('is_active', true)],
             'is_new_patient' => ['sometimes', 'boolean'],
-            'service_id' => ['required', 'integer', 'exists:services,id'],
-            'doctor_id' => ['nullable', 'integer', 'exists:staff_members,id'],
             'item_price' => ['required', 'numeric', 'min:0'],
             'payment_status' => ['required', 'string', Rule::in(['placeno', 'neplaceno', 'djelimicno_placeno'])],
             'payment_method' => [
@@ -52,21 +53,12 @@ class StoreDailyReportItemRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
+            'report_date' => trim((string) $this->input('report_date', '')),
             'is_new_patient' => $this->boolean('is_new_patient'),
             'payment_status' => trim((string) $this->input('payment_status', '')),
             'payment_method' => $this->filled('payment_method')
                 ? trim((string) $this->input('payment_method'))
                 : null,
         ]);
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    public function messages(): array
-    {
-        return [
-            'payment_status.in' => 'Status placanja mora biti placeno, neplaceno ili djelimicno_placeno.',
-        ];
     }
 }

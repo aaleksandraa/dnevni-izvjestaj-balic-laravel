@@ -4,9 +4,14 @@
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
                 Email primaoci izvjestaja
             </h2>
-            <a href="{{ route('report-email-settings.create') }}" class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
-                Novi primaoc
-            </a>
+            <div class="flex items-center gap-2">
+                <a href="{{ route('settings.daily-email-summary.edit') }}" class="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    Podesi sadrzaj dnevnog emaila
+                </a>
+                <a href="{{ route('report-email-settings.create') }}" class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">
+                    Novi primaoc
+                </a>
+            </div>
         </div>
     </x-slot>
 

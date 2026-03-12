@@ -125,6 +125,10 @@
                             </p>
                             <x-input-error class="mt-2" :messages="$errors->get('patient_id')" />
                         </div>
+                        <div class="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                            <input id="is_new_patient" name="is_new_patient" type="checkbox" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" @checked((bool) old('is_new_patient', false)) @disabled($isLocked)>
+                            <label for="is_new_patient" class="text-sm text-gray-700">Novi pacijent</label>
+                        </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
                             <div>
@@ -244,6 +248,7 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Pacijent</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Novi</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Usluga</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Doktor</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Placanje</th>
@@ -257,6 +262,13 @@
                             @forelse ($dailyReport->items as $item)
                                 <tr>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $item->patient?->full_name ?? $item->patient_full_name }}</td>
+                                    <td class="px-4 py-3 text-xs text-gray-700">
+                                        @if ($item->is_new_patient)
+                                            <span class="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-700">DA</span>
+                                        @else
+                                            <span>-</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $item->service?->name ?: '-' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $item->doctor?->full_name ?: '-' }}</td>
                                     <td class="px-4 py-3 text-xs text-gray-700">
@@ -283,7 +295,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-8 text-center text-sm text-gray-500">Nema unesenih stavki usluga.</td>
+                                    <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-500">Nema unesenih stavki usluga.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -368,10 +380,14 @@
                     Automatski pregled za datum {{ $dailyReport->report_date?->format('d.m.Y') }}.
                 </p>
 
-                <div class="mt-5 grid gap-4 md:grid-cols-4">
+                <div class="mt-5 grid gap-4 md:grid-cols-5">
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <p class="text-xs uppercase tracking-wide text-gray-500">Broj pregleda danas</p>
                         <p class="mt-2 text-2xl font-semibold text-gray-900">{{ $todayBreakdown['total_items_count'] }}</p>
+                    </div>
+                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-blue-700">Novi pacijenti danas</p>
+                        <p class="mt-2 text-2xl font-semibold text-blue-800">{{ $todayBreakdown['new_patients_count'] }}</p>
                     </div>
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <p class="text-xs uppercase tracking-wide text-gray-500">Promet danas</p>

@@ -261,6 +261,7 @@ class DailyReportController extends Controller
             'daily_report_id' => $dailyReport->id,
             'patient_id' => $patient->id,
             'patient_full_name' => $patient->full_name,
+            'is_new_patient' => (bool) ($validated['is_new_patient'] ?? false),
             'service_id' => $validated['service_id'],
             'doctor_id' => $validated['doctor_id'] ?: null,
             'item_price' => (float) $validated['item_price'],
@@ -358,6 +359,7 @@ class DailyReportController extends Controller
         $item->update([
             'patient_id' => $patient->id,
             'patient_full_name' => $patient->full_name,
+            'is_new_patient' => (bool) ($validated['is_new_patient'] ?? false),
             'service_id' => $validated['service_id'],
             'doctor_id' => $validated['doctor_id'] ?: null,
             'item_price' => (float) $validated['item_price'],
@@ -740,6 +742,7 @@ class DailyReportController extends Controller
             'daily_report_id' => (int) $item->daily_report_id,
             'patient_id' => $item->patient_id !== null ? (int) $item->patient_id : null,
             'patient_full_name' => $item->patient?->full_name ?? $item->patient_full_name,
+            'is_new_patient' => (bool) $item->is_new_patient,
             'service_id' => (int) $item->service_id,
             'doctor_id' => $item->doctor_id !== null ? (int) $item->doctor_id : null,
             'item_price' => (float) $item->item_price,
@@ -862,6 +865,7 @@ class DailyReportController extends Controller
 
         return [
             'total_items_count' => $items->count(),
+            'new_patients_count' => (int) $items->where('is_new_patient', true)->count(),
             'total_amount' => round((float) $items->sum('item_price'), 2),
             'paid_amount' => round((float) $items->sum('paid_amount'), 2),
             'remaining_amount' => round((float) $items->sum('remaining_amount'), 2),

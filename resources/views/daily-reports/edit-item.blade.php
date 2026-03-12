@@ -30,6 +30,11 @@
                         <x-input-error class="mt-2" :messages="$errors->get('patient_id')" />
                     </div>
 
+                    <div class="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <input id="is_new_patient" name="is_new_patient" type="checkbox" value="1" @checked((bool) old('is_new_patient', $item->is_new_patient)) class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                        <label for="is_new_patient" class="text-sm text-gray-700">Novi pacijent</label>
+                    </div>
+
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
                             <x-input-label for="service_id" value="Usluga" />

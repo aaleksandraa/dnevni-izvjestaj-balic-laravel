@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DailyReportController;
+use App\Http\Controllers\DailyEmailSummaryConfigurationController;
 use App\Http\Controllers\FindingCategoryController;
 use App\Http\Controllers\FindingController;
 use App\Http\Controllers\LocationController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ReportEmailSettingController;
 use App\Http\Controllers\ServiceCategoryController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaffMemberController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
@@ -27,6 +29,12 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified', 'active'])->name('dashboard');
 
 Route::middleware(['auth', 'active', 'role:glavni_admin,administrator_klinike'])->group(function () {
+    Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('settings/daily-email-summary', [DailyEmailSummaryConfigurationController::class, 'edit'])
+        ->name('settings.daily-email-summary.edit');
+    Route::put('settings/daily-email-summary', [DailyEmailSummaryConfigurationController::class, 'update'])
+        ->name('settings.daily-email-summary.update');
+
     Route::resource('locations', LocationController::class);
     Route::resource('service-categories', ServiceCategoryController::class);
     Route::resource('services', ServiceController::class);
@@ -56,6 +64,8 @@ Route::middleware(['auth', 'active', 'role:glavni_admin,administrator_klinike,me
         ->name('daily-reports.submit');
     Route::post('daily-reports/{daily_report}/reopen', [DailyReportController::class, 'reopen'])
         ->name('daily-reports.reopen');
+    Route::post('patients/{patient}/payments', [PatientController::class, 'storePayment'])
+        ->name('patients.payments.store');
     Route::resource('patients', PatientController::class);
 });
 
