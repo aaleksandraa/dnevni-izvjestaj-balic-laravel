@@ -1,8 +1,9 @@
 @php
-    $isEdit = isset($managedUser);
-    $activeValue = old('is_active', $managedUser->is_active ?? true);
-    $canSubmitValue = old('can_submit_report', $managedUser->can_submit_report ?? true);
-    $canChangeSubmitterValue = old('can_change_submitter', $managedUser->can_change_submitter ?? false);
+    $managedUser = $managedUser ?? null;
+    $isEdit = $managedUser !== null;
+    $activeValue = old('is_active', $managedUser?->is_active ?? true);
+    $canSubmitValue = old('can_submit_report', $managedUser?->can_submit_report ?? true);
+    $canChangeSubmitterValue = old('can_change_submitter', $managedUser?->can_change_submitter ?? false);
     $selectedLocationIds = collect(old('location_ids', $managedUser?->locations?->pluck('id')->all() ?? []))
         ->map(fn ($id) => (int) $id)
         ->all();
@@ -12,13 +13,13 @@
     <div class="grid gap-6 md:grid-cols-2">
         <div>
             <x-input-label for="name" value="Ime i prezime" />
-            <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $managedUser->name ?? '')" required autofocus />
+            <x-text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $managedUser?->name ?? '')" required autofocus />
             <x-input-error class="mt-2" :messages="$errors->get('name')" />
         </div>
 
         <div>
             <x-input-label for="email" value="Email" />
-            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $managedUser->email ?? '')" required />
+            <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $managedUser?->email ?? '')" required />
             <x-input-error class="mt-2" :messages="$errors->get('email')" />
         </div>
 
@@ -27,7 +28,7 @@
             <select id="role" name="role" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <option value="">Odaberi ulogu</option>
                 @foreach ($roles as $roleOption)
-                    <option value="{{ $roleOption }}" @selected(old('role', $managedUser->role ?? '') === $roleOption)>
+                    <option value="{{ $roleOption }}" @selected(old('role', $managedUser?->role ?? '') === $roleOption)>
                         {{ str_replace('_', ' ', ucfirst($roleOption)) }}
                     </option>
                 @endforeach
@@ -37,7 +38,7 @@
 
         <div>
             <x-input-label for="phone" value="Telefon" />
-            <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $managedUser->phone ?? '')" />
+            <x-text-input id="phone" name="phone" type="text" class="mt-1 block w-full" :value="old('phone', $managedUser?->phone ?? '')" />
             <x-input-error class="mt-2" :messages="$errors->get('phone')" />
         </div>
 

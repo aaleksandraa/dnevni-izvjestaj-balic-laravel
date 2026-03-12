@@ -15,6 +15,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call([
+            LocationSeeder::class,
+            ServiceCatalogSeeder::class,
+            FindingCatalogSeeder::class,
+            StaffMemberSeeder::class,
+        ]);
+
         User::query()->updateOrCreate(
             ['email' => 'admin@reports-ivf.local'],
             [
