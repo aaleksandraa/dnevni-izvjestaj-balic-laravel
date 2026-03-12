@@ -76,6 +76,7 @@ class DailyReportController extends Controller
         return view('daily-reports.create', [
             'locations' => $locations,
             'defaultDate' => now()->toDateString(),
+            'defaultDateDisplay' => now()->format('d.m.Y'),
         ]);
     }
 
@@ -85,9 +86,10 @@ class DailyReportController extends Controller
     public function store(StoreDailyReportRequest $request): RedirectResponse
     {
         $validated = $request->validated();
+        $reportDate = now()->toDateString();
 
         $existingReport = DailyReport::query()
-            ->whereDate('report_date', $validated['report_date'])
+            ->whereDate('report_date', $reportDate)
             ->where('location_id', $validated['location_id'])
             ->first();
 
@@ -98,7 +100,7 @@ class DailyReportController extends Controller
         }
 
         $report = DailyReport::query()->create([
-            'report_date' => $validated['report_date'],
+            'report_date' => $reportDate,
             'location_id' => $validated['location_id'],
             'status' => 'u_radu',
             'notes' => $validated['notes'] ?? null,
@@ -165,6 +167,13 @@ class DailyReportController extends Controller
             ->orderBy('name')
             ->get();
 
+        $knownPatients = DailyReportItem::query()
+            ->whereNotNull('patient_full_name')
+            ->where('patient_full_name', '!=', '')
+            ->distinct()
+            ->orderBy('patient_full_name')
+            ->pluck('patient_full_name');
+
         return view('daily-reports.show', [
             'dailyReport' => $dailyReport,
             'services' => $services,
@@ -173,7 +182,9 @@ class DailyReportController extends Controller
             'paymentMethods' => $paymentMethods,
             'possibleSubmitters' => $possibleSubmitters,
             'locations' => $locations,
+            'knownPatients' => $knownPatients,
             'summary' => $this->summary($dailyReport),
+            'todayBreakdown' => $this->todayBreakdown($dailyReport),
         ]);
     }
 
@@ -281,6 +292,104 @@ class DailyReportController extends Controller
         return redirect()
             ->route('daily-reports.show', $dailyReport)
             ->with('status', 'Stavka usluge je uspjesno dodana.');
+    }
+
+    public function editItem(DailyReport $dailyReport, DailyReportItem $item): View
+    {
+        $this->ensureReportIsEditable($dailyReport);
+        $this->ensureItemBelongsToReport($dailyReport, $item);
+
+        $locationId = $dailyReport->location_id;
+
+        $services = Service::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $doctors = StaffMember::query()
+            ->where('is_active', true)
+            ->whereIn('role_type', ['primarni_doktor', 'sekundarni_doktor', 'saradnik'])
+            ->whereHas('locations', fn ($query) => $query->where('locations.id', $locationId))
+            ->orderBy('full_name')
+            ->get();
+
+        $paymentMethods = PaymentMethod::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        $knownPatients = DailyReportItem::query()
+            ->whereNotNull('patient_full_name')
+            ->where('patient_full_name', '!=', '')
+            ->distinct()
+            ->orderBy('patient_full_name')
+            ->pluck('patient_full_name');
+
+        return view('daily-reports.edit-item', [
+            'dailyReport' => $dailyReport,
+            'item' => $item,
+            'services' => $services,
+            'doctors' => $doctors,
+            'paymentMethods' => $paymentMethods,
+            'knownPatients' => $knownPatients,
+        ]);
+    }
+
+    public function updateItem(
+        StoreDailyReportItemRequest $request,
+        DailyReport $dailyReport,
+        DailyReportItem $item,
+        AuditLogService $auditLogService
+    ): RedirectResponse
+    {
+        $this->ensureReportIsEditable($dailyReport);
+        $this->ensureItemBelongsToReport($dailyReport, $item);
+
+        $validated = $request->validated();
+        $actor = $request->user();
+        $oldValues = [
+            'report' => $this->reportItemAuditContext($dailyReport),
+            'item' => $this->serviceItemAuditPayload($item),
+        ];
+
+        [$paymentStatus, $paidAmount, $remainingAmount, $paymentMethod, $unpaidReason] = $this->normalizePaymentInput($validated);
+
+        $item->update([
+            'patient_full_name' => $validated['patient_full_name'],
+            'service_id' => $validated['service_id'],
+            'doctor_id' => $validated['doctor_id'] ?: null,
+            'item_price' => (float) $validated['item_price'],
+            'payment_status' => $paymentStatus,
+            'payment_method' => $paymentMethod,
+            'paid_amount' => $paidAmount,
+            'remaining_amount' => $remainingAmount,
+            'unpaid_reason' => $unpaidReason,
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        $dailyReport->update([
+            'last_edited_by_user_id' => $actor?->id,
+        ]);
+
+        $item->refresh();
+        $auditLogService->log(
+            $actor,
+            'daily_report_items',
+            $item->id,
+            'updated',
+            $oldValues,
+            [
+                'report' => $this->reportItemAuditContext($dailyReport),
+                'item' => $this->serviceItemAuditPayload($item),
+            ],
+            'Azurirana stavka usluge u izvjestaju #'.$dailyReport->id
+        );
+
+        return redirect()
+            ->route('daily-reports.show', $dailyReport)
+            ->with('status', 'Stavka usluge je uspjesno azurirana.');
     }
 
     public function destroyItem(
@@ -677,6 +786,91 @@ class DailyReportController extends Controller
             'last_edited_by_user_id' => $dailyReport->last_edited_by_user_id !== null
                 ? (int) $dailyReport->last_edited_by_user_id
                 : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function todayBreakdown(DailyReport $dailyReport): array
+    {
+        $items = $dailyReport->items;
+
+        $byService = $items
+            ->groupBy(fn (DailyReportItem $item): string => $item->service?->name ?? 'Bez usluge')
+            ->map(function ($groupedItems, string $serviceName): array {
+                return [
+                    'name' => $serviceName,
+                    'count' => $groupedItems->count(),
+                    'amount' => round((float) $groupedItems->sum('item_price'), 2),
+                ];
+            })
+            ->sortByDesc('count')
+            ->values()
+            ->all();
+
+        $byDoctor = $items
+            ->groupBy(fn (DailyReportItem $item): string => $item->doctor?->full_name ?? 'Bez doktora')
+            ->map(function ($groupedItems, string $doctorName): array {
+                return [
+                    'name' => $doctorName,
+                    'count' => $groupedItems->count(),
+                    'amount' => round((float) $groupedItems->sum('item_price'), 2),
+                ];
+            })
+            ->sortByDesc('count')
+            ->values()
+            ->all();
+
+        $methodLabels = [
+            'fiskalno' => 'Fiskalno',
+            'nefiskalno' => 'Nefiskalno',
+            'karticno' => 'Karticno',
+            'ziralno' => 'Ziralno',
+            'nepoznato' => 'Nepoznato',
+        ];
+
+        $paidItems = $items->filter(
+            fn (DailyReportItem $item): bool => in_array(
+                (string) $item->payment_status,
+                ['placeno', 'djelimicno_placeno'],
+                true
+            )
+        );
+
+        $byPaymentMethod = $paidItems
+            ->groupBy(function (DailyReportItem $item): string {
+                $method = trim((string) ($item->payment_method ?? ''));
+
+                return $method !== '' ? $method : 'nepoznato';
+            })
+            ->map(function ($groupedItems, string $methodKey) use ($methodLabels): array {
+                return [
+                    'method_key' => $methodKey,
+                    'method_label' => $methodLabels[$methodKey] ?? ucfirst($methodKey),
+                    'count' => $groupedItems->count(),
+                    'paid_amount' => round((float) $groupedItems->sum('paid_amount'), 2),
+                ];
+            })
+            ->sortByDesc('paid_amount')
+            ->values()
+            ->all();
+
+        $fullyUnpaidItems = $items->where('payment_status', 'neplaceno');
+        $partiallyPaidItems = $items->where('payment_status', 'djelimicno_placeno');
+
+        return [
+            'total_items_count' => $items->count(),
+            'total_amount' => round((float) $items->sum('item_price'), 2),
+            'paid_amount' => round((float) $items->sum('paid_amount'), 2),
+            'remaining_amount' => round((float) $items->sum('remaining_amount'), 2),
+            'fully_unpaid_count' => $fullyUnpaidItems->count(),
+            'fully_unpaid_amount' => round((float) $fullyUnpaidItems->sum('remaining_amount'), 2),
+            'partially_paid_count' => $partiallyPaidItems->count(),
+            'partially_paid_remaining_amount' => round((float) $partiallyPaidItems->sum('remaining_amount'), 2),
+            'by_service' => $byService,
+            'by_doctor' => $byDoctor,
+            'by_payment_method' => $byPaymentMethod,
         ];
     }
 }

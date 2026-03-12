@@ -14,7 +14,9 @@
                     <div class="grid gap-6 md:grid-cols-2">
                         <div>
                             <x-input-label for="report_date" value="Datum izvjestaja" />
-                            <x-text-input id="report_date" name="report_date" type="date" class="mt-1 block w-full" :value="old('report_date', $defaultDate)" required />
+                            <x-text-input id="report_date_display" name="report_date_display" type="text" class="mt-1 block w-full" :value="$defaultDateDisplay" readonly />
+                            <input type="hidden" id="report_date" name="report_date" value="{{ old('report_date', $defaultDate) }}">
+                            <p class="mt-1 text-xs text-gray-500">Izvjestaj se moze kreirati samo za danasnji datum.</p>
                             <x-input-error class="mt-2" :messages="$errors->get('report_date')" />
                         </div>
 

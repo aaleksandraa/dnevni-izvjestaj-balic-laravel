@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\DailyReport;
+use App\Models\DailyReportItem;
 use App\Models\Finding;
 use App\Models\FindingCategory;
 use App\Models\Location;
@@ -106,5 +107,156 @@ class DailyReportWorkflowTest extends TestCase
             'status' => 'podnesen',
             'submitted_by_user_id' => $nurse->id,
         ]);
+    }
+
+    public function test_daily_report_can_be_created_only_for_today(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+
+        $this->actingAs($nurse)
+            ->post(route('daily-reports.store'), [
+                'report_date' => now()->subDay()->toDateString(),
+                'location_id' => $location->id,
+            ])
+            ->assertSessionHasErrors(['report_date']);
+
+        $this->actingAs($nurse)
+            ->post(route('daily-reports.store'), [
+                'report_date' => now()->addDay()->toDateString(),
+                'location_id' => $location->id,
+            ])
+            ->assertSessionHasErrors(['report_date']);
+    }
+
+    public function test_nurse_can_edit_existing_service_item(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $serviceCategory = ServiceCategory::factory()->create();
+        $serviceA = Service::factory()->create([
+            'service_category_id' => $serviceCategory->id,
+            'is_active' => true,
+            'base_price' => 100,
+        ]);
+        $serviceB = Service::factory()->create([
+            'service_category_id' => $serviceCategory->id,
+            'is_active' => true,
+            'base_price' => 140,
+        ]);
+
+        $doctor = StaffMember::factory()->create([
+            'role_type' => 'primarni_doktor',
+            'is_active' => true,
+        ]);
+        $doctor->locations()->sync([$location->id]);
+
+        $report = DailyReport::factory()->create([
+            'report_date' => now()->toDateString(),
+            'location_id' => $location->id,
+            'status' => 'u_radu',
+            'created_by_user_id' => $nurse->id,
+        ]);
+
+        $item = DailyReportItem::factory()->create([
+            'daily_report_id' => $report->id,
+            'patient_full_name' => 'Pacijent Original',
+            'service_id' => $serviceA->id,
+            'doctor_id' => $doctor->id,
+            'item_price' => 100,
+            'payment_status' => 'placeno',
+            'payment_method' => 'fiskalno',
+            'paid_amount' => 100,
+            'remaining_amount' => 0,
+            'unpaid_reason' => null,
+            'entered_by_user_id' => $nurse->id,
+        ]);
+
+        $this->actingAs($nurse)
+            ->put(route('daily-reports.items.update', [$report, $item]), [
+                'patient_full_name' => 'Pacijent Azuriran',
+                'service_id' => $serviceB->id,
+                'doctor_id' => $doctor->id,
+                'item_price' => 140,
+                'payment_status' => 'djelimicno_placeno',
+                'payment_method' => 'karticno',
+                'paid_amount' => 70,
+                'unpaid_reason' => 'Nastavak naplate',
+                'notes' => 'Azurirana stavka',
+            ])
+            ->assertRedirect(route('daily-reports.show', $report));
+
+        $this->assertDatabaseHas('daily_report_items', [
+            'id' => $item->id,
+            'patient_full_name' => 'Pacijent Azuriran',
+            'service_id' => $serviceB->id,
+            'payment_status' => 'djelimicno_placeno',
+            'payment_method' => 'karticno',
+            'paid_amount' => 70,
+            'remaining_amount' => 70,
+        ]);
+    }
+
+    public function test_show_page_displays_today_breakdown_sections(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $serviceCategory = ServiceCategory::factory()->create();
+        $service = Service::factory()->create([
+            'service_category_id' => $serviceCategory->id,
+            'is_active' => true,
+            'name' => 'Konsultacija IVF',
+        ]);
+
+        $doctor = StaffMember::factory()->create([
+            'role_type' => 'primarni_doktor',
+            'is_active' => true,
+            'full_name' => 'Dr Test Doktor',
+        ]);
+        $doctor->locations()->sync([$location->id]);
+
+        $report = DailyReport::factory()->create([
+            'report_date' => now()->toDateString(),
+            'location_id' => $location->id,
+            'status' => 'u_radu',
+            'created_by_user_id' => $nurse->id,
+        ]);
+
+        DailyReportItem::factory()->create([
+            'daily_report_id' => $report->id,
+            'patient_full_name' => 'Pacijent R',
+            'service_id' => $service->id,
+            'doctor_id' => $doctor->id,
+            'item_price' => 120,
+            'payment_status' => 'placeno',
+            'payment_method' => 'karticno',
+            'paid_amount' => 120,
+            'remaining_amount' => 0,
+            'unpaid_reason' => null,
+            'entered_by_user_id' => $nurse->id,
+        ]);
+
+        $this->actingAs($nurse)
+            ->get(route('daily-reports.show', $report))
+            ->assertOk()
+            ->assertSee('Danasnja rekapitulacija')
+            ->assertSee('Pregledi po uslugama')
+            ->assertSee('Pregledi po doktorima')
+            ->assertSee('Naplaceno po nacinu')
+            ->assertSee('Konsultacija IVF')
+            ->assertSee('Dr Test Doktor')
+            ->assertSee('Karticno');
     }
 }

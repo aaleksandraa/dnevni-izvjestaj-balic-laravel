@@ -51,6 +51,7 @@ class StoreDailyReportItemRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
+            'patient_full_name' => trim((string) $this->input('patient_full_name', '')),
             'payment_status' => trim((string) $this->input('payment_status', '')),
             'payment_method' => $this->filled('payment_method')
                 ? trim((string) $this->input('payment_method'))

@@ -111,7 +111,12 @@
                         @csrf
                         <div>
                             <x-input-label for="patient_full_name" value="Pacijent" />
-                            <x-text-input id="patient_full_name" name="patient_full_name" type="text" class="mt-1 block w-full" :value="old('patient_full_name')" :disabled="$isLocked" />
+                            <x-text-input id="patient_full_name" name="patient_full_name" type="text" list="known_patients" class="mt-1 block w-full" :value="old('patient_full_name')" :disabled="$isLocked" />
+                            <datalist id="known_patients">
+                                @foreach ($knownPatients as $patientName)
+                                    <option value="{{ $patientName }}"></option>
+                                @endforeach
+                            </datalist>
                         </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
@@ -255,13 +260,18 @@
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ number_format((float) $item->paid_amount, 2, ',', '.') }}</td>
                                     <td class="px-4 py-3 text-sm font-semibold text-gray-700">{{ number_format((float) $item->remaining_amount, 2, ',', '.') }}</td>
                                     <td class="px-4 py-3 text-right">
-                                        <form method="POST" action="{{ route('daily-reports.items.destroy', [$dailyReport, $item]) }}">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="inline-flex items-center rounded-md border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50" onclick="return confirm('Ukloniti ovu stavku?')" @disabled($isLocked)>
-                                                Obrisi
-                                            </button>
-                                        </form>
+                                        <div class="flex justify-end gap-2">
+                                            <a href="{{ route('daily-reports.items.edit', [$dailyReport, $item]) }}" class="inline-flex items-center rounded-md border border-indigo-300 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 @if($isLocked) pointer-events-none opacity-50 @endif">
+                                                Uredi
+                                            </a>
+                                            <form method="POST" action="{{ route('daily-reports.items.destroy', [$dailyReport, $item]) }}">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="inline-flex items-center rounded-md border border-red-300 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50" onclick="return confirm('Ukloniti ovu stavku?')" @disabled($isLocked)>
+                                                    Obrisi
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
@@ -343,6 +353,148 @@
                         </span>
                     </div>
                 </form>
+            </div>
+
+            <div class="rounded-xl bg-white p-6 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-900">Danasnja rekapitulacija</h3>
+                <p class="mt-1 text-sm text-gray-500">
+                    Automatski pregled za datum {{ $dailyReport->report_date?->format('d.m.Y') }}.
+                </p>
+
+                <div class="mt-5 grid gap-4 md:grid-cols-4">
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-gray-500">Broj pregleda danas</p>
+                        <p class="mt-2 text-2xl font-semibold text-gray-900">{{ $todayBreakdown['total_items_count'] }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-gray-500">Promet danas</p>
+                        <p class="mt-2 text-2xl font-semibold text-gray-900">{{ number_format($todayBreakdown['total_amount'], 2, ',', '.') }} KM</p>
+                    </div>
+                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-emerald-700">Naplaceno</p>
+                        <p class="mt-2 text-2xl font-semibold text-emerald-800">{{ number_format($todayBreakdown['paid_amount'], 2, ',', '.') }} KM</p>
+                    </div>
+                    <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-red-700">Nenaplaceno (dug)</p>
+                        <p class="mt-2 text-2xl font-semibold text-red-800">{{ number_format($todayBreakdown['remaining_amount'], 2, ',', '.') }} KM</p>
+                    </div>
+                </div>
+
+                <div class="mt-6 grid gap-6 xl:grid-cols-3">
+                    <div class="overflow-hidden rounded-lg border border-gray-200">
+                        <div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <h4 class="text-sm font-semibold text-gray-800">Pregledi po uslugama</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-white">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Usluga</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Broj</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Iznos</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 bg-white">
+                                    @forelse ($todayBreakdown['by_service'] as $row)
+                                        <tr>
+                                            <td class="px-4 py-2 text-sm text-gray-800">{{ $row['name'] }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ $row['count'] }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ number_format($row['amount'], 2, ',', '.') }} KM</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="3" class="px-4 py-4 text-center text-sm text-gray-500">Nema stavki usluga.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="overflow-hidden rounded-lg border border-gray-200">
+                        <div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <h4 class="text-sm font-semibold text-gray-800">Pregledi po doktorima</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-white">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Doktor</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Broj</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Iznos</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 bg-white">
+                                    @forelse ($todayBreakdown['by_doctor'] as $row)
+                                        <tr>
+                                            <td class="px-4 py-2 text-sm text-gray-800">{{ $row['name'] }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ $row['count'] }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ number_format($row['amount'], 2, ',', '.') }} KM</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="3" class="px-4 py-4 text-center text-sm text-gray-500">Nema stavki usluga.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="overflow-hidden rounded-lg border border-gray-200">
+                        <div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <h4 class="text-sm font-semibold text-gray-800">Naplaceno po nacinu</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-white">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Nacin</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Broj</th>
+                                        <th class="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Naplaceno</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 bg-white">
+                                    @forelse ($todayBreakdown['by_payment_method'] as $row)
+                                        <tr>
+                                            <td class="px-4 py-2 text-sm text-gray-800">{{ $row['method_label'] }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ $row['count'] }}</td>
+                                            <td class="px-4 py-2 text-sm text-gray-700">{{ number_format($row['paid_amount'], 2, ',', '.') }} KM</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="3" class="px-4 py-4 text-center text-sm text-gray-500">Nema naplacenih stavki.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <h4 class="text-sm font-semibold text-gray-800">Stanje nenaplacenih stavki</h4>
+                    <div class="mt-3 grid gap-3 md:grid-cols-3">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-gray-500">Potpuno neplaceno</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-800">
+                                {{ $todayBreakdown['fully_unpaid_count'] }} stavki / {{ number_format($todayBreakdown['fully_unpaid_amount'], 2, ',', '.') }} KM
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-gray-500">Djelimicno placeno</p>
+                            <p class="mt-1 text-sm font-semibold text-gray-800">
+                                {{ $todayBreakdown['partially_paid_count'] }} stavki / preostalo {{ number_format($todayBreakdown['partially_paid_remaining_amount'], 2, ',', '.') }} KM
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-gray-500">Ukupan preostali dug</p>
+                            <p class="mt-1 text-sm font-semibold text-red-700">
+                                {{ number_format($todayBreakdown['remaining_amount'], 2, ',', '.') }} KM
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

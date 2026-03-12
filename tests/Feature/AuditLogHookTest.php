@@ -189,6 +189,75 @@ class AuditLogHookTest extends TestCase
         $this->assertSame('Pacijent Audit', $deletedLog->old_values['item']['patient_full_name']);
     }
 
+    public function test_service_item_update_is_audited(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+            'can_submit_report' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $serviceCategory = ServiceCategory::factory()->create();
+        $serviceA = Service::factory()->create([
+            'service_category_id' => $serviceCategory->id,
+            'is_active' => true,
+        ]);
+        $serviceB = Service::factory()->create([
+            'service_category_id' => $serviceCategory->id,
+            'is_active' => true,
+        ]);
+        $doctor = StaffMember::factory()->create([
+            'is_active' => true,
+        ]);
+        $doctor->locations()->sync([$location->id]);
+
+        $report = DailyReport::factory()->create([
+            'location_id' => $location->id,
+            'status' => 'u_radu',
+            'created_by_user_id' => $nurse->id,
+            'last_edited_by_user_id' => $nurse->id,
+        ]);
+
+        $item = DailyReportItem::factory()->create([
+            'daily_report_id' => $report->id,
+            'patient_full_name' => 'Pacijent Prije',
+            'service_id' => $serviceA->id,
+            'doctor_id' => $doctor->id,
+            'item_price' => 100,
+            'paid_amount' => 100,
+            'remaining_amount' => 0,
+            'payment_status' => 'placeno',
+            'payment_method' => 'fiskalno',
+            'unpaid_reason' => null,
+            'entered_by_user_id' => $nurse->id,
+        ]);
+
+        $this->actingAs($nurse)
+            ->put(route('daily-reports.items.update', [$report, $item]), [
+                'patient_full_name' => 'Pacijent Poslije',
+                'service_id' => $serviceB->id,
+                'doctor_id' => $doctor->id,
+                'item_price' => 150,
+                'payment_status' => 'djelimicno_placeno',
+                'payment_method' => 'karticno',
+                'paid_amount' => 50,
+                'unpaid_reason' => 'Dopuna kasnije',
+            ])
+            ->assertRedirect(route('daily-reports.show', $report));
+
+        $updatedLog = AuditLog::query()
+            ->where('entity_type', 'daily_report_items')
+            ->where('entity_id', $item->id)
+            ->where('action', 'updated')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($updatedLog);
+        $this->assertSame('Pacijent Prije', $updatedLog->old_values['item']['patient_full_name']);
+        $this->assertSame('Pacijent Poslije', $updatedLog->new_values['item']['patient_full_name']);
+    }
+
     public function test_finding_item_create_and_delete_are_audited(): void
     {
         $nurse = User::factory()->create([

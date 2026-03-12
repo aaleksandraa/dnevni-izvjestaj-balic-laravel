@@ -41,6 +41,10 @@ Route::middleware(['auth', 'active', 'role:glavni_admin,administrator_klinike,me
     Route::resource('daily-reports', DailyReportController::class);
     Route::post('daily-reports/{daily_report}/items', [DailyReportController::class, 'storeItem'])
         ->name('daily-reports.items.store');
+    Route::get('daily-reports/{daily_report}/items/{item}/edit', [DailyReportController::class, 'editItem'])
+        ->name('daily-reports.items.edit');
+    Route::put('daily-reports/{daily_report}/items/{item}', [DailyReportController::class, 'updateItem'])
+        ->name('daily-reports.items.update');
     Route::delete('daily-reports/{daily_report}/items/{item}', [DailyReportController::class, 'destroyItem'])
         ->name('daily-reports.items.destroy');
     Route::post('daily-reports/{daily_report}/finding-items', [DailyReportController::class, 'storeFindingItem'])

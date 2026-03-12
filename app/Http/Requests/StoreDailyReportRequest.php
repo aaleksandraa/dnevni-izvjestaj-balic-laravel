@@ -32,7 +32,7 @@ class StoreDailyReportRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'report_date' => ['required', 'date'],
+            'report_date' => ['required', 'date', 'after_or_equal:today', 'before_or_equal:today'],
             'location_id' => [
                 'required',
                 'integer',
@@ -44,6 +44,17 @@ class StoreDailyReportRequest extends FormRequest
                 }),
             ],
             'notes' => ['nullable', 'string'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'report_date.after_or_equal' => 'Dnevni izvjestaj se moze kreirati samo za danasnji datum.',
+            'report_date.before_or_equal' => 'Dnevni izvjestaj se moze kreirati samo za danasnji datum.',
         ];
     }
 }
