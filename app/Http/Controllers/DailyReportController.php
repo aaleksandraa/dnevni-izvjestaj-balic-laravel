@@ -799,6 +799,7 @@ class DailyReportController extends Controller
     private function todayBreakdown(DailyReport $dailyReport): array
     {
         $items = $dailyReport->items;
+        $findingItems = $dailyReport->findingItems;
 
         $byService = $items
             ->groupBy(fn (DailyReportItem $item): string => $item->service?->name ?? 'Bez usluge')
@@ -862,11 +863,16 @@ class DailyReportController extends Controller
 
         $fullyUnpaidItems = $items->where('payment_status', 'neplaceno');
         $partiallyPaidItems = $items->where('payment_status', 'djelimicno_placeno');
+        $servicesAmount = (float) $items->sum('item_price');
+        $findingsAmount = (float) $findingItems->sum('total_price');
 
         return [
             'total_items_count' => $items->count(),
             'new_patients_count' => (int) $items->where('is_new_patient', true)->count(),
-            'total_amount' => round((float) $items->sum('item_price'), 2),
+            'services_amount' => round($servicesAmount, 2),
+            'findings_count' => (int) $findingItems->sum('quantity'),
+            'findings_amount' => round($findingsAmount, 2),
+            'total_amount' => round($servicesAmount + $findingsAmount, 2),
             'paid_amount' => round((float) $items->sum('paid_amount'), 2),
             'remaining_amount' => round((float) $items->sum('remaining_amount'), 2),
             'fully_unpaid_count' => $fullyUnpaidItems->count(),

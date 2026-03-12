@@ -242,6 +242,14 @@ class DailyReportWorkflowTest extends TestCase
             'full_name' => 'Dr Test Doktor',
         ]);
         $doctor->locations()->sync([$location->id]);
+        $findingCategory = FindingCategory::factory()->create();
+        $finding = Finding::factory()->create([
+            'finding_category_id' => $findingCategory->id,
+            'service_id' => $service->id,
+            'unit_price' => 20,
+            'is_active' => true,
+            'name' => 'Nalaz Test',
+        ]);
         $patient = Patient::factory()->create([
             'full_name' => 'Pacijent R',
             'is_active' => true,
@@ -269,6 +277,15 @@ class DailyReportWorkflowTest extends TestCase
             'entered_by_user_id' => $nurse->id,
         ]);
 
+        $report->findingItems()->create([
+            'finding_id' => $finding->id,
+            'quantity' => 1,
+            'unit_price' => 20,
+            'total_price' => 20,
+            'notes' => null,
+            'entered_by_user_id' => $nurse->id,
+        ]);
+
         $this->actingAs($nurse)
             ->get(route('daily-reports.show', $report))
             ->assertOk()
@@ -278,6 +295,8 @@ class DailyReportWorkflowTest extends TestCase
             ->assertSee('Naplaceno po nacinu')
             ->assertSee('Konsultacija IVF')
             ->assertSee('Dr Test Doktor')
-            ->assertSee('Karticno');
+            ->assertSee('Karticno')
+            ->assertSee('Nalazi danas')
+            ->assertSee('140,00 KM');
     }
 }

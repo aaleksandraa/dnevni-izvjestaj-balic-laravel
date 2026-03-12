@@ -380,7 +380,7 @@
                     Automatski pregled za datum {{ $dailyReport->report_date?->format('d.m.Y') }}.
                 </p>
 
-                <div class="mt-5 grid gap-4 md:grid-cols-5">
+                <div class="mt-5 grid gap-4 md:grid-cols-6">
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <p class="text-xs uppercase tracking-wide text-gray-500">Broj pregleda danas</p>
                         <p class="mt-2 text-2xl font-semibold text-gray-900">{{ $todayBreakdown['total_items_count'] }}</p>
@@ -392,6 +392,12 @@
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <p class="text-xs uppercase tracking-wide text-gray-500">Promet danas</p>
                         <p class="mt-2 text-2xl font-semibold text-gray-900">{{ number_format($todayBreakdown['total_amount'], 2, ',', '.') }} KM</p>
+                        <p class="mt-1 text-xs text-gray-500">Ukljucuje usluge + nalaze</p>
+                    </div>
+                    <div class="rounded-lg border border-violet-200 bg-violet-50 p-4">
+                        <p class="text-xs uppercase tracking-wide text-violet-700">Nalazi danas</p>
+                        <p class="mt-2 text-2xl font-semibold text-violet-800">{{ number_format($todayBreakdown['findings_amount'], 2, ',', '.') }} KM</p>
+                        <p class="mt-1 text-xs text-violet-700">{{ $todayBreakdown['findings_count'] }} stavki</p>
                     </div>
                     <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                         <p class="text-xs uppercase tracking-wide text-emerald-700">Naplaceno</p>
