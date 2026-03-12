@@ -4,6 +4,7 @@ use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\FindingCategoryController;
 use App\Http\Controllers\FindingController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\PatientController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ReportEmailSettingController;
@@ -55,6 +56,7 @@ Route::middleware(['auth', 'active', 'role:glavni_admin,administrator_klinike,me
         ->name('daily-reports.submit');
     Route::post('daily-reports/{daily_report}/reopen', [DailyReportController::class, 'reopen'])
         ->name('daily-reports.reopen');
+    Route::resource('patients', PatientController::class);
 });
 
 Route::middleware(['auth', 'active'])->group(function () {

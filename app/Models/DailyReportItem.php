@@ -12,6 +12,7 @@ class DailyReportItem extends Model
 
     protected $fillable = [
         'daily_report_id',
+        'patient_id',
         'patient_full_name',
         'service_id',
         'doctor_id',
@@ -42,6 +43,11 @@ class DailyReportItem extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(Patient::class);
     }
 
     public function doctor(): BelongsTo

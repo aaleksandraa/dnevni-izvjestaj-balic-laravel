@@ -12,6 +12,7 @@ use App\Models\DailyReportFindingItem;
 use App\Models\DailyReportItem;
 use App\Models\Finding;
 use App\Models\Location;
+use App\Models\Patient;
 use App\Models\PaymentMethod;
 use App\Models\Service;
 use App\Models\StaffMember;
@@ -124,7 +125,7 @@ class DailyReportController extends Controller
             'submittedBy',
             'lastEditedBy',
             'items' => fn ($query) => $query
-                ->with(['service', 'doctor', 'enteredBy'])
+                ->with(['patient', 'service', 'doctor', 'enteredBy'])
                 ->latest('id'),
             'findingItems' => fn ($query) => $query
                 ->with(['finding', 'enteredBy'])
@@ -157,6 +158,11 @@ class DailyReportController extends Controller
             ->orderBy('name')
             ->get();
 
+        $patients = Patient::query()
+            ->where('is_active', true)
+            ->orderBy('full_name')
+            ->get();
+
         $possibleSubmitters = User::query()
             ->where('is_active', true)
             ->orderBy('name')
@@ -167,22 +173,15 @@ class DailyReportController extends Controller
             ->orderBy('name')
             ->get();
 
-        $knownPatients = DailyReportItem::query()
-            ->whereNotNull('patient_full_name')
-            ->where('patient_full_name', '!=', '')
-            ->distinct()
-            ->orderBy('patient_full_name')
-            ->pluck('patient_full_name');
-
         return view('daily-reports.show', [
             'dailyReport' => $dailyReport,
             'services' => $services,
             'doctors' => $doctors,
             'findings' => $findings,
             'paymentMethods' => $paymentMethods,
+            'patients' => $patients,
             'possibleSubmitters' => $possibleSubmitters,
             'locations' => $locations,
-            'knownPatients' => $knownPatients,
             'summary' => $this->summary($dailyReport),
             'todayBreakdown' => $this->todayBreakdown($dailyReport),
         ]);
@@ -254,12 +253,14 @@ class DailyReportController extends Controller
 
         $validated = $request->validated();
         $actor = $request->user();
+        $patient = Patient::query()->findOrFail((int) $validated['patient_id']);
 
         [$paymentStatus, $paidAmount, $remainingAmount, $paymentMethod, $unpaidReason] = $this->normalizePaymentInput($validated);
 
         $item = DailyReportItem::query()->create([
             'daily_report_id' => $dailyReport->id,
-            'patient_full_name' => $validated['patient_full_name'],
+            'patient_id' => $patient->id,
+            'patient_full_name' => $patient->full_name,
             'service_id' => $validated['service_id'],
             'doctor_id' => $validated['doctor_id'] ?: null,
             'item_price' => (float) $validated['item_price'],
@@ -319,13 +320,10 @@ class DailyReportController extends Controller
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
-
-        $knownPatients = DailyReportItem::query()
-            ->whereNotNull('patient_full_name')
-            ->where('patient_full_name', '!=', '')
-            ->distinct()
-            ->orderBy('patient_full_name')
-            ->pluck('patient_full_name');
+        $patients = Patient::query()
+            ->where('is_active', true)
+            ->orderBy('full_name')
+            ->get();
 
         return view('daily-reports.edit-item', [
             'dailyReport' => $dailyReport,
@@ -333,7 +331,7 @@ class DailyReportController extends Controller
             'services' => $services,
             'doctors' => $doctors,
             'paymentMethods' => $paymentMethods,
-            'knownPatients' => $knownPatients,
+            'patients' => $patients,
         ]);
     }
 
@@ -349,6 +347,7 @@ class DailyReportController extends Controller
 
         $validated = $request->validated();
         $actor = $request->user();
+        $patient = Patient::query()->findOrFail((int) $validated['patient_id']);
         $oldValues = [
             'report' => $this->reportItemAuditContext($dailyReport),
             'item' => $this->serviceItemAuditPayload($item),
@@ -357,7 +356,8 @@ class DailyReportController extends Controller
         [$paymentStatus, $paidAmount, $remainingAmount, $paymentMethod, $unpaidReason] = $this->normalizePaymentInput($validated);
 
         $item->update([
-            'patient_full_name' => $validated['patient_full_name'],
+            'patient_id' => $patient->id,
+            'patient_full_name' => $patient->full_name,
             'service_id' => $validated['service_id'],
             'doctor_id' => $validated['doctor_id'] ?: null,
             'item_price' => (float) $validated['item_price'],
@@ -738,7 +738,8 @@ class DailyReportController extends Controller
     {
         return [
             'daily_report_id' => (int) $item->daily_report_id,
-            'patient_full_name' => $item->patient_full_name,
+            'patient_id' => $item->patient_id !== null ? (int) $item->patient_id : null,
+            'patient_full_name' => $item->patient?->full_name ?? $item->patient_full_name,
             'service_id' => (int) $item->service_id,
             'doctor_id' => $item->doctor_id !== null ? (int) $item->doctor_id : null,
             'item_price' => (float) $item->item_price,

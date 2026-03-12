@@ -32,7 +32,7 @@ class StoreDailyReportItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'patient_full_name' => ['required', 'string', 'max:255'],
+            'patient_id' => ['required', 'integer', Rule::exists('patients', 'id')->where('is_active', true)],
             'service_id' => ['required', 'integer', 'exists:services,id'],
             'doctor_id' => ['nullable', 'integer', 'exists:staff_members,id'],
             'item_price' => ['required', 'numeric', 'min:0'],
@@ -51,7 +51,6 @@ class StoreDailyReportItemRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'patient_full_name' => trim((string) $this->input('patient_full_name', '')),
             'payment_status' => trim((string) $this->input('payment_status', '')),
             'payment_method' => $this->filled('payment_method')
                 ? trim((string) $this->input('payment_method'))

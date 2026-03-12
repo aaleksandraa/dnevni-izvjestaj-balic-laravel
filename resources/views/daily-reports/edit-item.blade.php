@@ -18,14 +18,16 @@
                     @method('PUT')
 
                     <div>
-                        <x-input-label for="patient_full_name" value="Pacijent" />
-                        <x-text-input id="patient_full_name" name="patient_full_name" type="text" list="known_patients_edit" class="mt-1 block w-full" :value="old('patient_full_name', $item->patient_full_name)" required />
-                        <datalist id="known_patients_edit">
-                            @foreach ($knownPatients as $patientName)
-                                <option value="{{ $patientName }}"></option>
+                        <x-input-label for="patient_id" value="Pacijent" />
+                        <select id="patient_id" name="patient_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                            <option value="">Odaberi pacijenta</option>
+                            @foreach ($patients as $patientOption)
+                                <option value="{{ $patientOption->id }}" @selected((int) old('patient_id', (int) $item->patient_id) === $patientOption->id)>
+                                    {{ $patientOption->full_name }}
+                                </option>
                             @endforeach
-                        </datalist>
-                        <x-input-error class="mt-2" :messages="$errors->get('patient_full_name')" />
+                        </select>
+                        <x-input-error class="mt-2" :messages="$errors->get('patient_id')" />
                     </div>
 
                     <div class="grid gap-4 md:grid-cols-2">

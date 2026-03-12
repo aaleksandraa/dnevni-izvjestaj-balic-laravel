@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\DailyReport;
 use App\Models\DailyReportItem;
+use App\Models\Patient;
 use App\Models\Service;
 use App\Models\StaffMember;
 use App\Models\User;
@@ -36,6 +37,7 @@ class DailyReportItemFactory extends Factory
 
         return [
             'daily_report_id' => DailyReport::factory(),
+            'patient_id' => Patient::factory(),
             'patient_full_name' => fake()->name(),
             'service_id' => Service::factory(),
             'doctor_id' => StaffMember::factory(),

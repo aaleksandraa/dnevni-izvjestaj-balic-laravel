@@ -7,6 +7,7 @@ use App\Models\DailyReportItem;
 use App\Models\Finding;
 use App\Models\FindingCategory;
 use App\Models\Location;
+use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\StaffMember;
@@ -48,6 +49,10 @@ class DailyReportWorkflowTest extends TestCase
             'unit_price' => 10,
             'is_active' => true,
         ]);
+        $patient = Patient::factory()->create([
+            'full_name' => 'Pacijent A',
+            'is_active' => true,
+        ]);
 
         $this->actingAs($nurse)
             ->post(route('daily-reports.store'), [
@@ -61,7 +66,7 @@ class DailyReportWorkflowTest extends TestCase
 
         $this->actingAs($nurse)
             ->post(route('daily-reports.items.store', $report), [
-                'patient_full_name' => 'Pacijent A',
+                'patient_id' => $patient->id,
                 'service_id' => $service->id,
                 'doctor_id' => $doctor->id,
                 'item_price' => 100,
@@ -75,6 +80,7 @@ class DailyReportWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('daily_report_items', [
             'daily_report_id' => $report->id,
+            'patient_id' => $patient->id,
             'patient_full_name' => 'Pacijent A',
             'payment_status' => 'djelimicno_placeno',
             'paid_amount' => 40,
@@ -158,6 +164,14 @@ class DailyReportWorkflowTest extends TestCase
             'is_active' => true,
         ]);
         $doctor->locations()->sync([$location->id]);
+        $patientA = Patient::factory()->create([
+            'full_name' => 'Pacijent Original',
+            'is_active' => true,
+        ]);
+        $patientB = Patient::factory()->create([
+            'full_name' => 'Pacijent Azuriran',
+            'is_active' => true,
+        ]);
 
         $report = DailyReport::factory()->create([
             'report_date' => now()->toDateString(),
@@ -168,6 +182,7 @@ class DailyReportWorkflowTest extends TestCase
 
         $item = DailyReportItem::factory()->create([
             'daily_report_id' => $report->id,
+            'patient_id' => $patientA->id,
             'patient_full_name' => 'Pacijent Original',
             'service_id' => $serviceA->id,
             'doctor_id' => $doctor->id,
@@ -182,7 +197,7 @@ class DailyReportWorkflowTest extends TestCase
 
         $this->actingAs($nurse)
             ->put(route('daily-reports.items.update', [$report, $item]), [
-                'patient_full_name' => 'Pacijent Azuriran',
+                'patient_id' => $patientB->id,
                 'service_id' => $serviceB->id,
                 'doctor_id' => $doctor->id,
                 'item_price' => 140,
@@ -196,6 +211,7 @@ class DailyReportWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('daily_report_items', [
             'id' => $item->id,
+            'patient_id' => $patientB->id,
             'patient_full_name' => 'Pacijent Azuriran',
             'service_id' => $serviceB->id,
             'payment_status' => 'djelimicno_placeno',
@@ -226,6 +242,10 @@ class DailyReportWorkflowTest extends TestCase
             'full_name' => 'Dr Test Doktor',
         ]);
         $doctor->locations()->sync([$location->id]);
+        $patient = Patient::factory()->create([
+            'full_name' => 'Pacijent R',
+            'is_active' => true,
+        ]);
 
         $report = DailyReport::factory()->create([
             'report_date' => now()->toDateString(),
@@ -236,6 +256,7 @@ class DailyReportWorkflowTest extends TestCase
 
         DailyReportItem::factory()->create([
             'daily_report_id' => $report->id,
+            'patient_id' => $patient->id,
             'patient_full_name' => 'Pacijent R',
             'service_id' => $service->id,
             'doctor_id' => $doctor->id,

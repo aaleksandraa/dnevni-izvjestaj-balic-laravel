@@ -50,6 +50,9 @@
                         <x-nav-link :href="route('daily-reports.index')" :active="request()->routeIs('daily-reports.*')">
                             {{ __('Dnevni izvjestaji') }}
                         </x-nav-link>
+                        <x-nav-link :href="route('patients.index')" :active="request()->routeIs('patients.*')">
+                            {{ __('Pacijenti') }}
+                        </x-nav-link>
                     @endif
                 </div>
             </div>
@@ -140,6 +143,9 @@
             @if (Auth::user()->hasAnyRole(['glavni_admin', 'administrator_klinike', 'medicinska_sestra']))
                 <x-responsive-nav-link :href="route('daily-reports.index')" :active="request()->routeIs('daily-reports.*')">
                     {{ __('Dnevni izvjestaji') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('patients.index')" :active="request()->routeIs('patients.*')">
+                    {{ __('Pacijenti') }}
                 </x-responsive-nav-link>
             @endif
         </div>

@@ -9,6 +9,7 @@ use App\Models\FindingCategory;
 use App\Models\DailyReportItem;
 use App\Models\DailyReportFindingItem;
 use App\Models\Location;
+use App\Models\Patient;
 use App\Models\Service;
 use App\Models\ServiceCategory;
 use App\Models\StaffMember;
@@ -141,6 +142,10 @@ class AuditLogHookTest extends TestCase
             'is_active' => true,
         ]);
         $doctor->locations()->sync([$location->id]);
+        $patient = Patient::factory()->create([
+            'full_name' => 'Pacijent Audit',
+            'is_active' => true,
+        ]);
 
         $report = DailyReport::factory()->create([
             'location_id' => $location->id,
@@ -151,7 +156,7 @@ class AuditLogHookTest extends TestCase
 
         $this->actingAs($nurse)
             ->post(route('daily-reports.items.store', $report), [
-                'patient_full_name' => 'Pacijent Audit',
+                'patient_id' => $patient->id,
                 'service_id' => $service->id,
                 'doctor_id' => $doctor->id,
                 'item_price' => 120,
@@ -172,6 +177,7 @@ class AuditLogHookTest extends TestCase
             ->first();
 
         $this->assertNotNull($createdLog);
+        $this->assertSame($patient->id, $createdLog->new_values['item']['patient_id']);
         $this->assertSame('Pacijent Audit', $createdLog->new_values['item']['patient_full_name']);
 
         $this->actingAs($nurse)
@@ -186,6 +192,7 @@ class AuditLogHookTest extends TestCase
             ->first();
 
         $this->assertNotNull($deletedLog);
+        $this->assertSame($patient->id, $deletedLog->old_values['item']['patient_id']);
         $this->assertSame('Pacijent Audit', $deletedLog->old_values['item']['patient_full_name']);
     }
 
@@ -211,6 +218,14 @@ class AuditLogHookTest extends TestCase
             'is_active' => true,
         ]);
         $doctor->locations()->sync([$location->id]);
+        $patientBefore = Patient::factory()->create([
+            'full_name' => 'Pacijent Prije',
+            'is_active' => true,
+        ]);
+        $patientAfter = Patient::factory()->create([
+            'full_name' => 'Pacijent Poslije',
+            'is_active' => true,
+        ]);
 
         $report = DailyReport::factory()->create([
             'location_id' => $location->id,
@@ -221,6 +236,7 @@ class AuditLogHookTest extends TestCase
 
         $item = DailyReportItem::factory()->create([
             'daily_report_id' => $report->id,
+            'patient_id' => $patientBefore->id,
             'patient_full_name' => 'Pacijent Prije',
             'service_id' => $serviceA->id,
             'doctor_id' => $doctor->id,
@@ -235,7 +251,7 @@ class AuditLogHookTest extends TestCase
 
         $this->actingAs($nurse)
             ->put(route('daily-reports.items.update', [$report, $item]), [
-                'patient_full_name' => 'Pacijent Poslije',
+                'patient_id' => $patientAfter->id,
                 'service_id' => $serviceB->id,
                 'doctor_id' => $doctor->id,
                 'item_price' => 150,
@@ -254,6 +270,8 @@ class AuditLogHookTest extends TestCase
             ->first();
 
         $this->assertNotNull($updatedLog);
+        $this->assertSame($patientBefore->id, $updatedLog->old_values['item']['patient_id']);
+        $this->assertSame($patientAfter->id, $updatedLog->new_values['item']['patient_id']);
         $this->assertSame('Pacijent Prije', $updatedLog->old_values['item']['patient_full_name']);
         $this->assertSame('Pacijent Poslije', $updatedLog->new_values['item']['patient_full_name']);
     }

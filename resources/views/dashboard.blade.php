@@ -72,6 +72,12 @@
                         >
                             Otvori Audit log
                         </a>
+                        <a
+                            href="{{ route('patients.index') }}"
+                            class="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            Otvori Pacijente
+                        </a>
                     </div>
                 </div>
             @endif
@@ -85,6 +91,12 @@
                             class="inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
                         >
                             Otvori dnevne izvjestaje
+                        </a>
+                        <a
+                            href="{{ route('patients.index') }}"
+                            class="ml-2 inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            Otvori pacijente
                         </a>
                     </div>
                 </div>

@@ -110,13 +110,20 @@
                     <form method="POST" action="{{ route('daily-reports.items.store', $dailyReport) }}" class="mt-5 space-y-4">
                         @csrf
                         <div>
-                            <x-input-label for="patient_full_name" value="Pacijent" />
-                            <x-text-input id="patient_full_name" name="patient_full_name" type="text" list="known_patients" class="mt-1 block w-full" :value="old('patient_full_name')" :disabled="$isLocked" />
-                            <datalist id="known_patients">
-                                @foreach ($knownPatients as $patientName)
-                                    <option value="{{ $patientName }}"></option>
+                            <x-input-label for="patient_id" value="Pacijent" />
+                            <select id="patient_id" name="patient_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
+                                <option value="">Odaberi pacijenta</option>
+                                @foreach ($patients as $patientOption)
+                                    <option value="{{ $patientOption->id }}" @selected((int) old('patient_id', 0) === $patientOption->id)>
+                                        {{ $patientOption->full_name }}
+                                    </option>
                                 @endforeach
-                            </datalist>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">
+                                Ne vidis pacijenta? Dodaj ga kroz modul
+                                <a href="{{ route('patients.create') }}" target="_blank" class="font-semibold text-indigo-600 hover:underline">Pacijenti</a>.
+                            </p>
+                            <x-input-error class="mt-2" :messages="$errors->get('patient_id')" />
                         </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
@@ -249,7 +256,7 @@
                         <tbody class="divide-y divide-gray-100 bg-white">
                             @forelse ($dailyReport->items as $item)
                                 <tr>
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $item->patient_full_name }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $item->patient?->full_name ?? $item->patient_full_name }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $item->service?->name ?: '-' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $item->doctor?->full_name ?: '-' }}</td>
                                     <td class="px-4 py-3 text-xs text-gray-700">
