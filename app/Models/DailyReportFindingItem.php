@@ -13,6 +13,7 @@ class DailyReportFindingItem extends Model
     protected $fillable = [
         'daily_report_id',
         'finding_id',
+        'patient_id',
         'quantity',
         'unit_price',
         'total_price',
@@ -36,6 +37,11 @@ class DailyReportFindingItem extends Model
     public function finding(): BelongsTo
     {
         return $this->belongsTo(Finding::class);
+    }
+
+    public function patient(): BelongsTo
+    {
+        return $this->belongsTo(Patient::class);
     }
 
     public function enteredBy(): BelongsTo

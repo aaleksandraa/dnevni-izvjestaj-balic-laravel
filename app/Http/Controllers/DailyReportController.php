@@ -129,7 +129,7 @@ class DailyReportController extends Controller
                 ->with(['patient', 'service', 'doctor', 'enteredBy'])
                 ->latest('id'),
             'findingItems' => fn ($query) => $query
-                ->with(['finding', 'enteredBy'])
+                ->with(['finding', 'patient', 'enteredBy'])
                 ->latest('id'),
         ]);
 
@@ -443,6 +443,10 @@ class DailyReportController extends Controller
         $validated = $request->validated();
         $actor = $request->user();
         $finding = Finding::query()->findOrFail($validated['finding_id']);
+        $patient = $this->resolveOptionalPatientFromInput([
+            'patient_id' => $validated['finding_patient_id'] ?? null,
+            'patient_name' => $validated['finding_patient_name'] ?? null,
+        ]);
 
         $quantity = (int) $validated['quantity'];
         $unitPrice = $validated['unit_price'] ?? $finding->unit_price ?? 0;
@@ -452,6 +456,7 @@ class DailyReportController extends Controller
         $findingItem = DailyReportFindingItem::query()->create([
             'daily_report_id' => $dailyReport->id,
             'finding_id' => $finding->id,
+            'patient_id' => $patient?->id,
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'total_price' => $totalPrice,
@@ -689,6 +694,23 @@ class DailyReportController extends Controller
 
     /**
      * @param array<string, mixed> $validated
+     */
+    private function resolveOptionalPatientFromInput(array $validated): ?Patient
+    {
+        $patientId = isset($validated['patient_id']) ? (int) $validated['patient_id'] : 0;
+        $patientName = trim((string) ($validated['patient_name'] ?? ''));
+
+        if ($patientId <= 0 && $patientName === '') {
+            return null;
+        }
+
+        [$patient] = $this->resolvePatientFromInput($validated);
+
+        return $patient;
+    }
+
+    /**
+     * @param array<string, mixed> $validated
      * @return array{string, float, float, string|null, string|null}
      */
     private function normalizePaymentInput(array $validated): array
@@ -820,6 +842,8 @@ class DailyReportController extends Controller
         return [
             'daily_report_id' => (int) $findingItem->daily_report_id,
             'finding_id' => (int) $findingItem->finding_id,
+            'patient_id' => $findingItem->patient_id !== null ? (int) $findingItem->patient_id : null,
+            'patient_full_name' => $findingItem->patient?->full_name,
             'quantity' => (int) $findingItem->quantity,
             'unit_price' => (float) $findingItem->unit_price,
             'total_price' => (float) $findingItem->total_price,

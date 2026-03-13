@@ -44,18 +44,6 @@
 
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
-                            <x-input-label for="service_id" value="Usluga" />
-                            <select id="service_id" name="service_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
-                                <option value="">Odaberi uslugu</option>
-                                @foreach ($services as $service)
-                                    <option value="{{ $service->id }}" data-price="{{ (float) $service->base_price }}" @selected((int) old('service_id', $item->service_id) === $service->id)>
-                                        {{ $service->name }} ({{ number_format((float) $service->base_price, 2, ',', '.') }} KM)
-                                    </option>
-                                @endforeach
-                            </select>
-                            <x-input-error class="mt-2" :messages="$errors->get('service_id')" />
-                        </div>
-                        <div>
                             <x-input-label for="doctor_id" value="Doktor / saradnik" />
                             <select id="doctor_id" name="doctor_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="">Bez odabira</option>
@@ -66,6 +54,31 @@
                                 @endforeach
                             </select>
                             <x-input-error class="mt-2" :messages="$errors->get('doctor_id')" />
+                        </div>
+                        <div>
+                            @php
+                                $selectedServiceId = (int) old('service_id', $item->service_id);
+                                $selectedServiceName = old('service_name');
+                                if ($selectedServiceName === null && $selectedServiceId > 0) {
+                                    $selectedServiceName = optional($services->firstWhere('id', $selectedServiceId))->name ?? '';
+                                }
+                            @endphp
+                            <x-input-label for="service_name" value="Usluga (pisanje + sugestije)" />
+                            <div class="relative">
+                                <x-text-input
+                                    id="service_name"
+                                    name="service_name"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                    :value="$selectedServiceName"
+                                    placeholder="Upisite naziv usluge..."
+                                    autocomplete="off"
+                                    required
+                                />
+                                <input type="hidden" id="service_id" name="service_id" value="{{ old('service_id', $item->service_id) }}">
+                                <div id="service_suggestions_edit" class="absolute z-30 mt-1 hidden max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"></div>
+                            </div>
+                            <x-input-error class="mt-2" :messages="$errors->get('service_id')" />
                         </div>
                     </div>
 
@@ -132,9 +145,24 @@
         </div>
     </div>
 
+    @php
+        $patientsIndex = $patients->map(fn ($patient) => [
+            'id' => (int) $patient->id,
+            'name' => (string) $patient->full_name,
+        ])->values();
+
+        $servicesIndex = $services->map(fn ($service) => [
+            'id' => (int) $service->id,
+            'name' => (string) $service->name,
+            'price' => (float) $service->base_price,
+        ])->values();
+    @endphp
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const serviceSelect = document.getElementById('service_id');
+            const serviceNameInput = document.getElementById('service_name');
+            const serviceIdInput = document.getElementById('service_id');
+            const serviceSuggestions = document.getElementById('service_suggestions_edit');
             const itemPriceInput = document.getElementById('item_price');
             const paidAmountInput = document.getElementById('paid_amount');
             const paymentStatusSelect = document.getElementById('payment_status');
@@ -143,15 +171,13 @@
             const patientNameInput = document.getElementById('patient_name');
             const patientIdInput = document.getElementById('patient_id');
             const patientSuggestions = document.getElementById('patient_suggestions_edit');
-            const patientsIndex = @json(
-                $patients->map(fn ($patient) => [
-                    'id' => (int) $patient->id,
-                    'name' => (string) $patient->full_name,
-                ])->values()
-            );
+            const patientsIndex = @json($patientsIndex);
+            const servicesIndex = @json($servicesIndex);
 
             let highlightedPatientIndex = -1;
             let currentPatientMatches = [];
+            let highlightedServiceIndex = -1;
+            let currentServiceMatches = [];
 
             const normalizeText = (value) => {
                 let normalized = String(value || '').toLowerCase();
@@ -299,6 +325,148 @@
                 });
             };
 
+            const serviceLookup = servicesIndex.map((service) => {
+                const normalizedName = normalizeText(service.name);
+                return {
+                    ...service,
+                    normalizedName,
+                    tokens: normalizedName.split(' ').filter(Boolean),
+                };
+            });
+
+            const resolveExactService = (name) => {
+                const normalizedInput = normalizeText(name);
+                return serviceLookup.find((service) => service.normalizedName === normalizedInput) || null;
+            };
+
+            const serviceScore = (service, normalizedQuery, queryTokens) => {
+                if (!normalizedQuery) {
+                    return 0;
+                }
+
+                let score = 0;
+                if (service.normalizedName === normalizedQuery) {
+                    score += 1000;
+                }
+                if (service.normalizedName.startsWith(normalizedQuery)) {
+                    score += 700;
+                }
+                if (service.normalizedName.includes(normalizedQuery)) {
+                    score += 500;
+                }
+
+                if (queryTokens.length > 0 && queryTokens.every((token) => service.normalizedName.includes(token))) {
+                    score += 250;
+                }
+
+                queryTokens.forEach((token) => {
+                    if (service.tokens.some((part) => part.startsWith(token))) {
+                        score += 120;
+                    } else if (service.normalizedName.includes(token)) {
+                        score += 70;
+                    }
+                });
+
+                return score;
+            };
+
+            const setServicePrice = (price) => {
+                if (!itemPriceInput) {
+                    return;
+                }
+
+                itemPriceInput.value = String(price);
+                if (paymentStatusSelect?.value === 'placeno' && paidAmountInput) {
+                    paidAmountInput.value = String(price);
+                }
+            };
+
+            const hideServiceSuggestions = () => {
+                if (!serviceSuggestions) {
+                    return;
+                }
+                serviceSuggestions.classList.add('hidden');
+                highlightedServiceIndex = -1;
+            };
+
+            const applyServiceSelection = (service) => {
+                if (!serviceNameInput || !serviceIdInput) {
+                    return;
+                }
+
+                serviceNameInput.value = service.name;
+                serviceIdInput.value = String(service.id);
+                setServicePrice(service.price);
+                hideServiceSuggestions();
+            };
+
+            const highlightServiceSuggestion = () => {
+                if (!serviceSuggestions) {
+                    return;
+                }
+
+                const rows = Array.from(serviceSuggestions.querySelectorAll('.js-service-suggestion'));
+                rows.forEach((row, index) => {
+                    row.classList.toggle('bg-indigo-100', index === highlightedServiceIndex);
+                });
+            };
+
+            const renderServiceSuggestions = () => {
+                if (!serviceNameInput || !serviceIdInput || !serviceSuggestions) {
+                    return;
+                }
+
+                const rawQuery = serviceNameInput.value.trim();
+                const normalizedQuery = normalizeText(rawQuery);
+                const exactService = resolveExactService(rawQuery);
+                serviceIdInput.value = exactService ? String(exactService.id) : '';
+
+                if (exactService) {
+                    setServicePrice(exactService.price);
+                }
+
+                if (normalizedQuery.length < 2) {
+                    serviceSuggestions.classList.add('hidden');
+                    serviceSuggestions.innerHTML = '';
+                    currentServiceMatches = [];
+                    highlightedServiceIndex = -1;
+                    return;
+                }
+
+                const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+                const matches = serviceLookup
+                    .map((service) => ({
+                        service,
+                        score: serviceScore(service, normalizedQuery, queryTokens),
+                    }))
+                    .filter((row) => row.score > 0)
+                    .sort((a, b) => {
+                        if (b.score !== a.score) {
+                            return b.score - a.score;
+                        }
+                        return a.service.name.localeCompare(b.service.name, 'bs');
+                    })
+                    .slice(0, 8)
+                    .map((row) => row.service);
+
+                currentServiceMatches = matches;
+                highlightedServiceIndex = -1;
+
+                if (matches.length === 0) {
+                    serviceSuggestions.innerHTML = '<div class="px-3 py-2 text-xs text-gray-500">Nema podudaranja za uslugu.</div>';
+                    serviceSuggestions.classList.remove('hidden');
+                    return;
+                }
+
+                serviceSuggestions.innerHTML = matches.map((service, index) => {
+                    const safeName = escapeHtml(service.name);
+                    const safePrice = Number(service.price || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return `<button type="button" class="js-service-suggestion flex w-full items-center justify-between border-t border-gray-100 px-3 py-2 text-left text-sm hover:bg-indigo-50" data-index="${index}"><span>${safeName}</span><span class="text-xs text-gray-500">${safePrice} KM</span></button>`;
+                }).join('');
+
+                serviceSuggestions.classList.remove('hidden');
+            };
+
             const togglePaymentBlocks = () => {
                 const status = paymentStatusSelect?.value || 'neplaceno';
 
@@ -315,21 +483,62 @@
                 }
             };
 
-            if (serviceSelect && itemPriceInput) {
-                serviceSelect.addEventListener('change', () => {
-                    const selected = serviceSelect.selectedOptions[0];
-                    if (!selected) {
+            if (serviceNameInput && serviceIdInput && serviceSuggestions) {
+                serviceNameInput.addEventListener('input', renderServiceSuggestions);
+                serviceNameInput.addEventListener('focus', renderServiceSuggestions);
+                serviceNameInput.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        const exactService = resolveExactService(serviceNameInput.value);
+                        serviceIdInput.value = exactService ? String(exactService.id) : '';
+                        if (exactService) {
+                            setServicePrice(exactService.price);
+                        }
+                        hideServiceSuggestions();
+                    }, 120);
+                });
+                serviceNameInput.addEventListener('keydown', (event) => {
+                    if (serviceSuggestions.classList.contains('hidden') || currentServiceMatches.length === 0) {
                         return;
                     }
 
-                    const price = selected.getAttribute('data-price');
-                    if (price !== null) {
-                        itemPriceInput.value = price;
-                        if (paymentStatusSelect?.value === 'placeno' && paidAmountInput) {
-                            paidAmountInput.value = price;
-                        }
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        highlightedServiceIndex = (highlightedServiceIndex + 1) % currentServiceMatches.length;
+                        highlightServiceSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        highlightedServiceIndex = highlightedServiceIndex <= 0
+                            ? currentServiceMatches.length - 1
+                            : highlightedServiceIndex - 1;
+                        highlightServiceSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'Enter' && highlightedServiceIndex >= 0) {
+                        event.preventDefault();
+                        applyServiceSelection(currentServiceMatches[highlightedServiceIndex]);
                     }
                 });
+
+                serviceSuggestions.addEventListener('mousedown', (event) => {
+                    const target = event.target.closest('.js-service-suggestion');
+                    if (!target) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    const selectedIndex = Number(target.dataset.index ?? -1);
+                    const selectedService = currentServiceMatches[selectedIndex];
+                    if (!selectedService) {
+                        return;
+                    }
+                    applyServiceSelection(selectedService);
+                });
+
+                renderServiceSuggestions();
             }
 
             if (paymentStatusSelect) {

@@ -110,7 +110,13 @@
                     <form method="POST" action="{{ route('daily-reports.items.store', $dailyReport) }}" class="mt-5 space-y-4">
                         @csrf
                         <div>
-                            <x-input-label for="patient_name" value="Pacijent (pisanje + sugestije)" />
+                            <div class="flex items-center justify-between gap-3">
+                                <x-input-label for="patient_name" value="Pacijent (pisanje + sugestije)" />
+                                <label for="is_new_patient" class="inline-flex items-center gap-2 text-sm text-gray-700">
+                                    <input id="is_new_patient" name="is_new_patient" type="checkbox" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" @checked((bool) old('is_new_patient', false)) @disabled($isLocked)>
+                                    <span>Novi pacijent</span>
+                                </label>
+                            </div>
                             <div class="relative">
                                 <x-text-input
                                     id="patient_name"
@@ -132,23 +138,8 @@
                             <x-input-error class="mt-2" :messages="$errors->get('patient_name')" />
                             <x-input-error class="mt-2" :messages="$errors->get('patient_id')" />
                         </div>
-                        <div class="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                            <input id="is_new_patient" name="is_new_patient" type="checkbox" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" @checked((bool) old('is_new_patient', false)) @disabled($isLocked)>
-                            <label for="is_new_patient" class="text-sm text-gray-700">Novi pacijent</label>
-                        </div>
 
                         <div class="grid gap-4 md:grid-cols-2">
-                            <div>
-                                <x-input-label for="service_id" value="Usluga" />
-                                <select id="service_id" name="service_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
-                                    <option value="">Odaberi uslugu</option>
-                                    @foreach ($services as $service)
-                                        <option value="{{ $service->id }}" data-price="{{ (float) $service->base_price }}" @selected((int) old('service_id', 0) === $service->id)>
-                                            {{ $service->name }} ({{ number_format((float) $service->base_price, 2, ',', '.') }} KM)
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
                             <div>
                                 <x-input-label for="doctor_id" value="Doktor / saradnik" />
                                 <select id="doctor_id" name="doctor_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
@@ -159,6 +150,31 @@
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div>
+                                @php
+                                    $selectedServiceId = (int) old('service_id', 0);
+                                    $selectedServiceName = old('service_name');
+                                    if ($selectedServiceName === null && $selectedServiceId > 0) {
+                                        $selectedServiceName = optional($services->firstWhere('id', $selectedServiceId))->name ?? '';
+                                    }
+                                @endphp
+                                <x-input-label for="service_name" value="Usluga (pisanje + sugestije)" />
+                                <div class="relative">
+                                    <x-text-input
+                                        id="service_name"
+                                        name="service_name"
+                                        type="text"
+                                        class="mt-1 block w-full"
+                                        :value="$selectedServiceName"
+                                        placeholder="Upisite naziv usluge..."
+                                        autocomplete="off"
+                                        :disabled="$isLocked"
+                                    />
+                                    <input type="hidden" id="service_id" name="service_id" value="{{ old('service_id', '') }}">
+                                    <div id="service_suggestions" class="absolute z-30 mt-1 hidden max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"></div>
+                                </div>
+                                <x-input-error class="mt-2" :messages="$errors->get('service_id')" />
                             </div>
                         </div>
 
@@ -216,6 +232,29 @@
                     <h3 class="text-lg font-semibold text-gray-900">Dodaj stavku nalaza</h3>
                     <form method="POST" action="{{ route('daily-reports.finding-items.store', $dailyReport) }}" class="mt-5 space-y-4">
                         @csrf
+                        <div>
+                            <x-input-label for="finding_patient_name" value="Pacijent (opcionalno)" />
+                            <div class="relative">
+                                <x-text-input
+                                    id="finding_patient_name"
+                                    name="finding_patient_name"
+                                    type="text"
+                                    class="mt-1 block w-full"
+                                    :value="old('finding_patient_name', '')"
+                                    placeholder="Upisite ime pacijenta ili ostavite prazno za ukupno..."
+                                    autocomplete="off"
+                                    :disabled="$isLocked"
+                                />
+                                <input type="hidden" id="finding_patient_id" name="finding_patient_id" value="{{ old('finding_patient_id', '') }}">
+                                <div id="finding_patient_suggestions" class="absolute z-30 mt-1 hidden max-h-56 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"></div>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">
+                                Ako ostavite prazno, nalaz se evidentira kao ukupni unos.
+                                Ako unesete ime koje ne postoji, sistem ce kreirati novog pacijenta.
+                            </p>
+                            <x-input-error class="mt-2" :messages="$errors->get('finding_patient_name')" />
+                            <x-input-error class="mt-2" :messages="$errors->get('finding_patient_id')" />
+                        </div>
                         <div>
                             <x-input-label for="finding_id" value="Nalaz" />
                             <select id="finding_id" name="finding_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
@@ -318,6 +357,7 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Pacijent</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Nalaz</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Kolicina</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Jedinicna</th>
@@ -328,6 +368,7 @@
                         <tbody class="divide-y divide-gray-100 bg-white">
                             @forelse ($dailyReport->findingItems as $findingItem)
                                 <tr>
+                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $findingItem->patient?->full_name ?? 'Ukupno' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $findingItem->finding?->name ?: '-' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $findingItem->quantity }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ number_format((float) $findingItem->unit_price, 2, ',', '.') }}</td>
@@ -344,7 +385,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500">Nema unesenih nalaza.</td>
+                                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">Nema unesenih nalaza.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -535,9 +576,24 @@
         </div>
     </div>
 
+    @php
+        $patientsIndex = $patients->map(fn ($patient) => [
+            'id' => (int) $patient->id,
+            'name' => (string) $patient->full_name,
+        ])->values();
+
+        $servicesIndex = $services->map(fn ($service) => [
+            'id' => (int) $service->id,
+            'name' => (string) $service->name,
+            'price' => (float) $service->base_price,
+        ])->values();
+    @endphp
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const serviceSelect = document.getElementById('service_id');
+            const serviceNameInput = document.getElementById('service_name');
+            const serviceIdInput = document.getElementById('service_id');
+            const serviceSuggestions = document.getElementById('service_suggestions');
             const itemPriceInput = document.getElementById('item_price');
             const paidAmountInput = document.getElementById('paid_amount');
             const paymentStatusSelect = document.getElementById('payment_status');
@@ -548,15 +604,18 @@
             const patientNameInput = document.getElementById('patient_name');
             const patientIdInput = document.getElementById('patient_id');
             const patientSuggestions = document.getElementById('patient_suggestions');
-            const patientsIndex = @json(
-                $patients->map(fn ($patient) => [
-                    'id' => (int) $patient->id,
-                    'name' => (string) $patient->full_name,
-                ])->values()
-            );
+            const findingPatientNameInput = document.getElementById('finding_patient_name');
+            const findingPatientIdInput = document.getElementById('finding_patient_id');
+            const findingPatientSuggestions = document.getElementById('finding_patient_suggestions');
+            const patientsIndex = @json($patientsIndex);
+            const servicesIndex = @json($servicesIndex);
 
             let highlightedPatientIndex = -1;
             let currentPatientMatches = [];
+            let highlightedFindingPatientIndex = -1;
+            let currentFindingPatientMatches = [];
+            let highlightedServiceIndex = -1;
+            let currentServiceMatches = [];
 
             const normalizeText = (value) => {
                 let normalized = String(value || '').toLowerCase();
@@ -704,6 +763,227 @@
                 });
             };
 
+            const renderFindingPatientSuggestions = () => {
+                if (!findingPatientSuggestions || !findingPatientNameInput || !findingPatientIdInput) {
+                    return;
+                }
+
+                const rawQuery = findingPatientNameInput.value.trim();
+                const normalizedQuery = normalizeText(rawQuery);
+                findingPatientIdInput.value = resolveExactPatientId(rawQuery);
+
+                if (normalizedQuery.length < 2) {
+                    findingPatientSuggestions.classList.add('hidden');
+                    findingPatientSuggestions.innerHTML = '';
+                    currentFindingPatientMatches = [];
+                    highlightedFindingPatientIndex = -1;
+                    return;
+                }
+
+                const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+                const matches = patientLookup
+                    .map((patient) => ({
+                        patient,
+                        score: patientScore(patient, normalizedQuery, queryTokens),
+                    }))
+                    .filter((row) => row.score > 0)
+                    .sort((a, b) => {
+                        if (b.score !== a.score) {
+                            return b.score - a.score;
+                        }
+                        return a.patient.name.localeCompare(b.patient.name, 'bs');
+                    })
+                    .slice(0, 8)
+                    .map((row) => row.patient);
+
+                currentFindingPatientMatches = matches;
+                highlightedFindingPatientIndex = -1;
+
+                if (matches.length === 0) {
+                    findingPatientSuggestions.innerHTML = '<div class="px-3 py-2 text-xs text-gray-500">Nema podudaranja. Unos ce kreirati novog pacijenta.</div>';
+                    findingPatientSuggestions.classList.remove('hidden');
+                    return;
+                }
+
+                findingPatientSuggestions.innerHTML = matches.map((patient, index) => {
+                    const safeName = escapeHtml(patient.name);
+                    return `<button type="button" class="js-finding-patient-suggestion flex w-full items-center justify-between border-t border-gray-100 px-3 py-2 text-left text-sm hover:bg-indigo-50" data-index="${index}"><span>${safeName}</span><span class="text-xs text-gray-400">postojeci</span></button>`;
+                }).join('');
+
+                findingPatientSuggestions.classList.remove('hidden');
+            };
+
+            const hideFindingPatientSuggestions = () => {
+                if (!findingPatientSuggestions) {
+                    return;
+                }
+                findingPatientSuggestions.classList.add('hidden');
+                highlightedFindingPatientIndex = -1;
+            };
+
+            const applyFindingPatientSelection = (patient) => {
+                if (!findingPatientNameInput || !findingPatientIdInput) {
+                    return;
+                }
+
+                findingPatientNameInput.value = patient.name;
+                findingPatientIdInput.value = String(patient.id);
+                hideFindingPatientSuggestions();
+            };
+
+            const highlightFindingPatientSuggestion = () => {
+                if (!findingPatientSuggestions) {
+                    return;
+                }
+
+                const rows = Array.from(findingPatientSuggestions.querySelectorAll('.js-finding-patient-suggestion'));
+                rows.forEach((row, index) => {
+                    row.classList.toggle('bg-indigo-100', index === highlightedFindingPatientIndex);
+                });
+            };
+
+            const serviceLookup = servicesIndex.map((service) => {
+                const normalizedName = normalizeText(service.name);
+                return {
+                    ...service,
+                    normalizedName,
+                    tokens: normalizedName.split(' ').filter(Boolean),
+                };
+            });
+
+            const resolveExactService = (name) => {
+                const normalizedInput = normalizeText(name);
+                return serviceLookup.find((service) => service.normalizedName === normalizedInput) || null;
+            };
+
+            const serviceScore = (service, normalizedQuery, queryTokens) => {
+                if (!normalizedQuery) {
+                    return 0;
+                }
+
+                let score = 0;
+                if (service.normalizedName === normalizedQuery) {
+                    score += 1000;
+                }
+                if (service.normalizedName.startsWith(normalizedQuery)) {
+                    score += 700;
+                }
+                if (service.normalizedName.includes(normalizedQuery)) {
+                    score += 500;
+                }
+
+                if (queryTokens.length > 0 && queryTokens.every((token) => service.normalizedName.includes(token))) {
+                    score += 250;
+                }
+
+                queryTokens.forEach((token) => {
+                    if (service.tokens.some((part) => part.startsWith(token))) {
+                        score += 120;
+                    } else if (service.normalizedName.includes(token)) {
+                        score += 70;
+                    }
+                });
+
+                return score;
+            };
+
+            const setServicePrice = (price) => {
+                if (!itemPriceInput) {
+                    return;
+                }
+
+                itemPriceInput.value = String(price);
+                if (paymentStatusSelect?.value === 'placeno' && paidAmountInput) {
+                    paidAmountInput.value = String(price);
+                }
+            };
+
+            const hideServiceSuggestions = () => {
+                if (!serviceSuggestions) {
+                    return;
+                }
+                serviceSuggestions.classList.add('hidden');
+                highlightedServiceIndex = -1;
+            };
+
+            const applyServiceSelection = (service) => {
+                if (!serviceNameInput || !serviceIdInput) {
+                    return;
+                }
+
+                serviceNameInput.value = service.name;
+                serviceIdInput.value = String(service.id);
+                setServicePrice(service.price);
+                hideServiceSuggestions();
+            };
+
+            const highlightServiceSuggestion = () => {
+                if (!serviceSuggestions) {
+                    return;
+                }
+
+                const rows = Array.from(serviceSuggestions.querySelectorAll('.js-service-suggestion'));
+                rows.forEach((row, index) => {
+                    row.classList.toggle('bg-indigo-100', index === highlightedServiceIndex);
+                });
+            };
+
+            const renderServiceSuggestions = () => {
+                if (!serviceNameInput || !serviceIdInput || !serviceSuggestions) {
+                    return;
+                }
+
+                const rawQuery = serviceNameInput.value.trim();
+                const normalizedQuery = normalizeText(rawQuery);
+                const exactService = resolveExactService(rawQuery);
+                serviceIdInput.value = exactService ? String(exactService.id) : '';
+
+                if (exactService) {
+                    setServicePrice(exactService.price);
+                }
+
+                if (normalizedQuery.length < 2) {
+                    serviceSuggestions.classList.add('hidden');
+                    serviceSuggestions.innerHTML = '';
+                    currentServiceMatches = [];
+                    highlightedServiceIndex = -1;
+                    return;
+                }
+
+                const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+                const matches = serviceLookup
+                    .map((service) => ({
+                        service,
+                        score: serviceScore(service, normalizedQuery, queryTokens),
+                    }))
+                    .filter((row) => row.score > 0)
+                    .sort((a, b) => {
+                        if (b.score !== a.score) {
+                            return b.score - a.score;
+                        }
+                        return a.service.name.localeCompare(b.service.name, 'bs');
+                    })
+                    .slice(0, 8)
+                    .map((row) => row.service);
+
+                currentServiceMatches = matches;
+                highlightedServiceIndex = -1;
+
+                if (matches.length === 0) {
+                    serviceSuggestions.innerHTML = '<div class="px-3 py-2 text-xs text-gray-500">Nema podudaranja za uslugu.</div>';
+                    serviceSuggestions.classList.remove('hidden');
+                    return;
+                }
+
+                serviceSuggestions.innerHTML = matches.map((service, index) => {
+                    const safeName = escapeHtml(service.name);
+                    const safePrice = Number(service.price || 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return `<button type="button" class="js-service-suggestion flex w-full items-center justify-between border-t border-gray-100 px-3 py-2 text-left text-sm hover:bg-indigo-50" data-index="${index}"><span>${safeName}</span><span class="text-xs text-gray-500">${safePrice} KM</span></button>`;
+                }).join('');
+
+                serviceSuggestions.classList.remove('hidden');
+            };
+
             const togglePaymentBlocks = () => {
                 const status = paymentStatusSelect?.value || 'neplaceno';
                 if (paymentMethodWrap) {
@@ -717,20 +997,62 @@
                 }
             };
 
-            if (serviceSelect && itemPriceInput) {
-                serviceSelect.addEventListener('change', () => {
-                    const selected = serviceSelect.selectedOptions[0];
-                    if (!selected) {
+            if (serviceNameInput && serviceIdInput && serviceSuggestions) {
+                serviceNameInput.addEventListener('input', renderServiceSuggestions);
+                serviceNameInput.addEventListener('focus', renderServiceSuggestions);
+                serviceNameInput.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        const exactService = resolveExactService(serviceNameInput.value);
+                        serviceIdInput.value = exactService ? String(exactService.id) : '';
+                        if (exactService) {
+                            setServicePrice(exactService.price);
+                        }
+                        hideServiceSuggestions();
+                    }, 120);
+                });
+                serviceNameInput.addEventListener('keydown', (event) => {
+                    if (serviceSuggestions.classList.contains('hidden') || currentServiceMatches.length === 0) {
                         return;
                     }
-                    const price = selected.getAttribute('data-price');
-                    if (price !== null) {
-                        itemPriceInput.value = price;
-                        if (paymentStatusSelect?.value === 'placeno' && paidAmountInput) {
-                            paidAmountInput.value = price;
-                        }
+
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        highlightedServiceIndex = (highlightedServiceIndex + 1) % currentServiceMatches.length;
+                        highlightServiceSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        highlightedServiceIndex = highlightedServiceIndex <= 0
+                            ? currentServiceMatches.length - 1
+                            : highlightedServiceIndex - 1;
+                        highlightServiceSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'Enter' && highlightedServiceIndex >= 0) {
+                        event.preventDefault();
+                        applyServiceSelection(currentServiceMatches[highlightedServiceIndex]);
                     }
                 });
+
+                serviceSuggestions.addEventListener('mousedown', (event) => {
+                    const target = event.target.closest('.js-service-suggestion');
+                    if (!target) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    const selectedIndex = Number(target.dataset.index ?? -1);
+                    const selectedService = currentServiceMatches[selectedIndex];
+                    if (!selectedService) {
+                        return;
+                    }
+                    applyServiceSelection(selectedService);
+                });
+
+                renderServiceSuggestions();
             }
 
             if (findingSelect && unitPriceInput) {
@@ -798,6 +1120,60 @@
                 });
 
                 renderPatientSuggestions();
+            }
+
+            if (findingPatientNameInput && findingPatientIdInput && findingPatientSuggestions) {
+                findingPatientNameInput.addEventListener('input', renderFindingPatientSuggestions);
+                findingPatientNameInput.addEventListener('focus', renderFindingPatientSuggestions);
+                findingPatientNameInput.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        findingPatientIdInput.value = resolveExactPatientId(findingPatientNameInput.value);
+                        hideFindingPatientSuggestions();
+                    }, 120);
+                });
+                findingPatientNameInput.addEventListener('keydown', (event) => {
+                    if (findingPatientSuggestions.classList.contains('hidden') || currentFindingPatientMatches.length === 0) {
+                        return;
+                    }
+
+                    if (event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        highlightedFindingPatientIndex = (highlightedFindingPatientIndex + 1) % currentFindingPatientMatches.length;
+                        highlightFindingPatientSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        highlightedFindingPatientIndex = highlightedFindingPatientIndex <= 0
+                            ? currentFindingPatientMatches.length - 1
+                            : highlightedFindingPatientIndex - 1;
+                        highlightFindingPatientSuggestion();
+                        return;
+                    }
+
+                    if (event.key === 'Enter' && highlightedFindingPatientIndex >= 0) {
+                        event.preventDefault();
+                        applyFindingPatientSelection(currentFindingPatientMatches[highlightedFindingPatientIndex]);
+                    }
+                });
+
+                findingPatientSuggestions.addEventListener('mousedown', (event) => {
+                    const target = event.target.closest('.js-finding-patient-suggestion');
+                    if (!target) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    const selectedIndex = Number(target.dataset.index ?? -1);
+                    const selectedPatient = currentFindingPatientMatches[selectedIndex];
+                    if (!selectedPatient) {
+                        return;
+                    }
+                    applyFindingPatientSelection(selectedPatient);
+                });
+
+                renderFindingPatientSuggestions();
             }
 
             if (paymentStatusSelect) {

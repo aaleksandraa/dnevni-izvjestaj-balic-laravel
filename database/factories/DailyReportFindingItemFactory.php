@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\DailyReport;
 use App\Models\DailyReportFindingItem;
 use App\Models\Finding;
+use App\Models\Patient;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -26,6 +27,7 @@ class DailyReportFindingItemFactory extends Factory
         return [
             'daily_report_id' => DailyReport::factory(),
             'finding_id' => Finding::factory(),
+            'patient_id' => fake()->boolean(40) ? Patient::factory() : null,
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'total_price' => round($quantity * $unitPrice, 2),

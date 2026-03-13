@@ -99,6 +99,7 @@ class DailyReportWorkflowTest extends TestCase
         $this->assertDatabaseHas('daily_report_finding_items', [
             'daily_report_id' => $report->id,
             'finding_id' => $finding->id,
+            'patient_id' => null,
             'quantity' => 2,
             'unit_price' => 10,
             'total_price' => 20,
@@ -398,6 +399,56 @@ class DailyReportWorkflowTest extends TestCase
             'patient_id' => $existingPatient->id,
             'patient_full_name' => 'Asja Colic',
             'is_new_patient' => 0,
+        ]);
+    }
+
+    public function test_nurse_can_add_finding_item_for_specific_patient(): void
+    {
+        $nurse = User::factory()->create([
+            'role' => 'medicinska_sestra',
+            'is_active' => true,
+        ]);
+
+        $location = Location::factory()->create();
+        $service = Service::factory()->create([
+            'service_category_id' => ServiceCategory::factory()->create()->id,
+            'is_active' => true,
+        ]);
+        $finding = Finding::factory()->create([
+            'finding_category_id' => FindingCategory::factory()->create()->id,
+            'service_id' => $service->id,
+            'unit_price' => 25,
+            'is_active' => true,
+        ]);
+        $patient = Patient::factory()->create([
+            'full_name' => 'Pacijent Nalaz',
+            'is_active' => true,
+        ]);
+
+        $report = DailyReport::factory()->create([
+            'report_date' => now()->toDateString(),
+            'location_id' => $location->id,
+            'status' => 'u_radu',
+            'created_by_user_id' => $nurse->id,
+        ]);
+
+        $this->actingAs($nurse)
+            ->post(route('daily-reports.finding-items.store', $report), [
+                'finding_patient_name' => 'Pacijent Nalaz',
+                'finding_id' => $finding->id,
+                'quantity' => 2,
+                'unit_price' => 25,
+                'notes' => 'Pojedinacni nalaz',
+            ])
+            ->assertRedirect(route('daily-reports.show', $report));
+
+        $this->assertDatabaseHas('daily_report_finding_items', [
+            'daily_report_id' => $report->id,
+            'patient_id' => $patient->id,
+            'finding_id' => $finding->id,
+            'quantity' => 2,
+            'unit_price' => 25,
+            'total_price' => 50,
         ]);
     }
 }

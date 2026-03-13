@@ -32,4 +32,9 @@ class Patient extends Model
     {
         return $this->hasMany(DailyReportItem::class);
     }
+
+    public function dailyReportFindingItems(): HasMany
+    {
+        return $this->hasMany(DailyReportFindingItem::class);
+    }
 }
