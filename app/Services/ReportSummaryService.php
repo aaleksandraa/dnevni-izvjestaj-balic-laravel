@@ -25,16 +25,18 @@ class ReportSummaryService
         $items = $dailyReport->items()
             ->with(['service:id,name', 'doctor:id,full_name,role_type'])
             ->get();
+        $findingItems = $dailyReport->findingItems()->get();
 
         $servicesCount = (int) $items->count();
         $servicesAmount = (float) $items->sum('item_price');
-        $paidAmount = (float) $items->sum('paid_amount');
-        $remainingAmount = (float) $items->sum('remaining_amount');
-        $unpaidItemsCount = (int) $items->where('payment_status', 'neplaceno')->count();
-        $partialItemsCount = (int) $items->where('payment_status', 'djelimicno_placeno')->count();
-
-        $findingsCount = (int) $dailyReport->findingItems()->sum('quantity');
-        $findingsAmount = (float) $dailyReport->findingItems()->sum('total_price');
+        $findingsCount = (int) $findingItems->sum('quantity');
+        $findingsAmount = (float) $findingItems->sum('total_price');
+        $paidAmount = (float) $items->sum('paid_amount') + (float) $findingItems->sum('paid_amount');
+        $remainingAmount = (float) $items->sum('remaining_amount') + (float) $findingItems->sum('remaining_amount');
+        $unpaidItemsCount = (int) $items->where('payment_status', 'neplaceno')->count()
+            + (int) $findingItems->where('payment_status', 'neplaceno')->count();
+        $partialItemsCount = (int) $items->where('payment_status', 'djelimicno_placeno')->count()
+            + (int) $findingItems->where('payment_status', 'djelimicno_placeno')->count();
 
         $selectedServices = Service::query()
             ->whereIn('id', $configuration['service_ids'])
@@ -151,13 +153,16 @@ class ReportSummaryService
 
         $servicesCount = (int) (clone $servicesQuery)->count();
         $servicesAmount = (float) (clone $servicesQuery)->sum('item_price');
-        $paidAmount = (float) (clone $servicesQuery)->sum('paid_amount');
-        $remainingAmount = (float) (clone $servicesQuery)->sum('remaining_amount');
-        $unpaidItemsCount = (int) (clone $servicesQuery)->where('payment_status', 'neplaceno')->count();
-        $partialItemsCount = (int) (clone $servicesQuery)->where('payment_status', 'djelimicno_placeno')->count();
-
         $findingsCount = (int) (clone $findingsQuery)->sum('quantity');
         $findingsAmount = (float) (clone $findingsQuery)->sum('total_price');
+        $paidAmount = (float) (clone $servicesQuery)->sum('paid_amount')
+            + (float) (clone $findingsQuery)->sum('paid_amount');
+        $remainingAmount = (float) (clone $servicesQuery)->sum('remaining_amount')
+            + (float) (clone $findingsQuery)->sum('remaining_amount');
+        $unpaidItemsCount = (int) (clone $servicesQuery)->where('payment_status', 'neplaceno')->count()
+            + (int) (clone $findingsQuery)->where('payment_status', 'neplaceno')->count();
+        $partialItemsCount = (int) (clone $servicesQuery)->where('payment_status', 'djelimicno_placeno')->count()
+            + (int) (clone $findingsQuery)->where('payment_status', 'djelimicno_placeno')->count();
 
         $locationRows = DailyReport::query()
             ->leftJoin('daily_report_items', 'daily_report_items.daily_report_id', '=', 'daily_reports.id')
@@ -202,8 +207,16 @@ class ReportSummaryService
                 'reports_count' => (int) (clone $locationReports)->count(),
                 'services_count' => (int) (clone $locationServices)->count(),
                 'services_amount' => round($servicesAmount, 2),
-                'paid_amount' => round((float) (clone $locationServices)->sum('paid_amount'), 2),
-                'remaining_amount' => round((float) (clone $locationServices)->sum('remaining_amount'), 2),
+                'paid_amount' => round(
+                    (float) (clone $locationServices)->sum('paid_amount')
+                    + (float) (clone $locationFindings)->sum('paid_amount'),
+                    2
+                ),
+                'remaining_amount' => round(
+                    (float) (clone $locationServices)->sum('remaining_amount')
+                    + (float) (clone $locationFindings)->sum('remaining_amount'),
+                    2
+                ),
                 'findings_count' => (int) (clone $locationFindings)->sum('quantity'),
                 'findings_amount' => round($findingsAmount, 2),
                 'grand_total' => round($servicesAmount + $findingsAmount, 2),

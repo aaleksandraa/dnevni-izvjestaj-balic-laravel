@@ -92,6 +92,9 @@ class DailyReportWorkflowTest extends TestCase
                 'finding_id' => $finding->id,
                 'quantity' => 2,
                 'unit_price' => 10,
+                'finding_payment_status' => 'placeno',
+                'finding_payment_method' => 'fiskalno',
+                'finding_paid_amount' => 20,
                 'notes' => 'Dodatni nalaz',
             ])
             ->assertRedirect(route('daily-reports.show', $report));
@@ -103,6 +106,10 @@ class DailyReportWorkflowTest extends TestCase
             'quantity' => 2,
             'unit_price' => 10,
             'total_price' => 20,
+            'payment_status' => 'placeno',
+            'payment_method' => 'fiskalno',
+            'paid_amount' => 20,
+            'remaining_amount' => 0,
         ]);
 
         $this->actingAs($nurse)
@@ -438,6 +445,9 @@ class DailyReportWorkflowTest extends TestCase
                 'finding_id' => $finding->id,
                 'quantity' => 2,
                 'unit_price' => 25,
+                'finding_payment_status' => 'placeno',
+                'finding_payment_method' => 'karticno',
+                'finding_paid_amount' => 50,
                 'notes' => 'Pojedinacni nalaz',
             ])
             ->assertRedirect(route('daily-reports.show', $report));
@@ -449,6 +459,10 @@ class DailyReportWorkflowTest extends TestCase
             'quantity' => 2,
             'unit_price' => 25,
             'total_price' => 50,
+            'payment_status' => 'placeno',
+            'payment_method' => 'karticno',
+            'paid_amount' => 50,
+            'remaining_amount' => 0,
         ]);
     }
 }

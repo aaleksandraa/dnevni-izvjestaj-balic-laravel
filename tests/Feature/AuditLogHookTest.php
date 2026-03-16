@@ -308,6 +308,9 @@ class AuditLogHookTest extends TestCase
                 'finding_id' => $finding->id,
                 'quantity' => 3,
                 'unit_price' => 15,
+                'finding_payment_status' => 'placeno',
+                'finding_payment_method' => 'fiskalno',
+                'finding_paid_amount' => 45,
                 'notes' => 'Audit nalaz',
             ])
             ->assertRedirect(route('daily-reports.show', $report));

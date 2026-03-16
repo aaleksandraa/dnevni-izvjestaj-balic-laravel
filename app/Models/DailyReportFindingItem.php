@@ -17,6 +17,11 @@ class DailyReportFindingItem extends Model
         'quantity',
         'unit_price',
         'total_price',
+        'payment_status',
+        'payment_method',
+        'paid_amount',
+        'remaining_amount',
+        'unpaid_reason',
         'notes',
         'entered_by_user_id',
     ];
@@ -26,6 +31,8 @@ class DailyReportFindingItem extends Model
         return [
             'unit_price' => 'decimal:2',
             'total_price' => 'decimal:2',
+            'paid_amount' => 'decimal:2',
+            'remaining_amount' => 'decimal:2',
         ];
     }
 

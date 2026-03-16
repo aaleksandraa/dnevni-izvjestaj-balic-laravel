@@ -276,6 +276,44 @@
                                 <x-text-input id="unit_price" name="unit_price" type="number" step="0.01" min="0" class="mt-1 block w-full" :value="old('unit_price')" :disabled="$isLocked" />
                             </div>
                         </div>
+                        <div class="grid gap-4 md:grid-cols-3">
+                            <div>
+                                <x-input-label for="finding_payment_status" value="Status placanja" />
+                                <select id="finding_payment_status" name="finding_payment_status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
+                                    @foreach (['neplaceno', 'placeno', 'djelimicno_placeno'] as $statusOption)
+                                        <option value="{{ $statusOption }}" @selected(old('finding_payment_status', 'neplaceno') === $statusOption)>
+                                            {{ strtoupper($statusOption) }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <x-input-error class="mt-2" :messages="$errors->get('finding_payment_status')" />
+                            </div>
+                            <div>
+                                <x-input-label for="finding_paid_amount" value="Placeni iznos" />
+                                <x-text-input id="finding_paid_amount" name="finding_paid_amount" type="number" step="0.01" min="0" class="mt-1 block w-full" :value="old('finding_paid_amount')" :disabled="$isLocked" />
+                                <x-input-error class="mt-2" :messages="$errors->get('finding_paid_amount')" />
+                            </div>
+                            <div id="finding_payment_method_wrap">
+                                <x-input-label for="finding_payment_method" value="Nacin placanja" />
+                                <select id="finding_payment_method" name="finding_payment_method" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
+                                    <option value="">Odaberi nacin</option>
+                                    @foreach ($paymentMethods as $method)
+                                        @php
+                                            $normalized = \Illuminate\Support\Str::of($method->name)->lower()->replace('Ä', 'c')->replace('Ä‡', 'c')->replace('Å¾', 'z')->replace('Å¡', 's')->replace('Ä‘', 'dj')->replace(' ', '_');
+                                        @endphp
+                                        <option value="{{ $normalized }}" @selected(old('finding_payment_method') === (string) $normalized)>
+                                            {{ $method->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <x-input-error class="mt-2" :messages="$errors->get('finding_payment_method')" />
+                            </div>
+                        </div>
+                        <div id="finding_unpaid_reason_wrap">
+                            <x-input-label for="finding_unpaid_reason" value="Razlog neplacanja" />
+                            <textarea id="finding_unpaid_reason" name="finding_unpaid_reason" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>{{ old('finding_unpaid_reason') }}</textarea>
+                            <x-input-error class="mt-2" :messages="$errors->get('finding_unpaid_reason')" />
+                        </div>
                         <div>
                             <x-input-label for="finding_notes" value="Napomena" />
                             <textarea id="finding_notes" name="notes" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>{{ old('notes') }}</textarea>
@@ -360,8 +398,11 @@
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Pacijent</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Nalaz</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Kolicina</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Placanje</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Jedinicna</th>
                                 <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Ukupno</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Naplaceno</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Dug</th>
                                 <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Akcije</th>
                             </tr>
                         </thead>
@@ -371,8 +412,14 @@
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $findingItem->patient?->full_name ?? 'Ukupno' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $findingItem->finding?->name ?: '-' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $findingItem->quantity }}</td>
+                                    <td class="px-4 py-3 text-xs text-gray-700">
+                                        <div>{{ strtoupper((string) $findingItem->payment_status) }}</div>
+                                        <div class="text-gray-500">{{ $findingItem->payment_method ?: '-' }}</div>
+                                    </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ number_format((float) $findingItem->unit_price, 2, ',', '.') }}</td>
                                     <td class="px-4 py-3 text-sm font-semibold text-gray-700">{{ number_format((float) $findingItem->total_price, 2, ',', '.') }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ number_format((float) $findingItem->paid_amount, 2, ',', '.') }}</td>
+                                    <td class="px-4 py-3 text-sm font-semibold text-gray-700">{{ number_format((float) $findingItem->remaining_amount, 2, ',', '.') }}</td>
                                     <td class="px-4 py-3 text-right">
                                         <form method="POST" action="{{ route('daily-reports.finding-items.destroy', [$dailyReport, $findingItem]) }}">
                                             @csrf
@@ -385,41 +432,12 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">Nema unesenih nalaza.</td>
+                                    <td colspan="9" class="px-4 py-8 text-center text-sm text-gray-500">Nema unesenih nalaza.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <div class="rounded-xl bg-white p-6 shadow-sm">
-                <h3 class="text-lg font-semibold text-gray-900">Podnosenje izvjestaja</h3>
-                <form method="POST" action="{{ route('daily-reports.submit', $dailyReport) }}" class="mt-4 space-y-4">
-                    @csrf
-                    @if (auth()->user()?->can_change_submitter)
-                        <div>
-                            <x-input-label for="submitted_by_user_id" value="Podnosilac izvjestaja" />
-                            <select id="submitted_by_user_id" name="submitted_by_user_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
-                                @foreach ($possibleSubmitters as $submitter)
-                                    <option value="{{ $submitter->id }}" @selected((int) old('submitted_by_user_id', auth()->id()) === $submitter->id)>
-                                        {{ $submitter->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
-
-                    <div class="flex flex-wrap items-center gap-3">
-                        <x-primary-button :disabled="$isLocked">Podnesi danasnji izvjestaj</x-primary-button>
-                        <span class="text-sm text-gray-500">
-                            Trenutni status: <strong>{{ strtoupper($dailyReport->status) }}</strong>
-                            @if ($dailyReport->submitted_at)
-                                (podnesen: {{ $dailyReport->submitted_at->format('d.m.Y H:i') }})
-                            @endif
-                        </span>
-                    </div>
-                </form>
             </div>
 
             <div class="rounded-xl bg-white p-6 shadow-sm">
@@ -573,6 +591,35 @@
                     </div>
                 </div>
             </div>
+
+            <div class="rounded-xl bg-white p-6 shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-900">Podnosenje izvjestaja</h3>
+                <form method="POST" action="{{ route('daily-reports.submit', $dailyReport) }}" class="mt-4 space-y-4">
+                    @csrf
+                    @if (auth()->user()?->can_change_submitter)
+                        <div>
+                            <x-input-label for="submitted_by_user_id" value="Podnosilac izvjestaja" />
+                            <select id="submitted_by_user_id" name="submitted_by_user_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" @disabled($isLocked)>
+                                @foreach ($possibleSubmitters as $submitter)
+                                    <option value="{{ $submitter->id }}" @selected((int) old('submitted_by_user_id', auth()->id()) === $submitter->id)>
+                                        {{ $submitter->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
+
+                    <div class="flex flex-wrap items-center gap-3">
+                        <x-primary-button :disabled="$isLocked">Podnesi danasnji izvjestaj</x-primary-button>
+                        <span class="text-sm text-gray-500">
+                            Trenutni status: <strong>{{ strtoupper($dailyReport->status) }}</strong>
+                            @if ($dailyReport->submitted_at)
+                                (podnesen: {{ $dailyReport->submitted_at->format('d.m.Y H:i') }})
+                            @endif
+                        </span>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -600,7 +647,13 @@
             const paymentMethodWrap = document.getElementById('payment_method_wrap');
             const unpaidReasonWrap = document.getElementById('unpaid_reason_wrap');
             const findingSelect = document.getElementById('finding_id');
+            const findingQuantityInput = document.getElementById('quantity');
             const unitPriceInput = document.getElementById('unit_price');
+            const findingPaymentStatusSelect = document.getElementById('finding_payment_status');
+            const findingPaidAmountInput = document.getElementById('finding_paid_amount');
+            const findingPaymentMethodWrap = document.getElementById('finding_payment_method_wrap');
+            const findingPaymentMethodSelect = document.getElementById('finding_payment_method');
+            const findingUnpaidReasonWrap = document.getElementById('finding_unpaid_reason_wrap');
             const patientNameInput = document.getElementById('patient_name');
             const patientIdInput = document.getElementById('patient_id');
             const patientSuggestions = document.getElementById('patient_suggestions');
@@ -997,6 +1050,41 @@
                 }
             };
 
+            const resolveFindingTotal = () => {
+                const quantity = Number(findingQuantityInput?.value || 0);
+                const unitPrice = Number(unitPriceInput?.value || 0);
+                const normalizedQuantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
+                const normalizedUnitPrice = Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : 0;
+                return Number((normalizedQuantity * normalizedUnitPrice).toFixed(2));
+            };
+
+            const syncFindingPaidForFullyPaid = () => {
+                if (findingPaymentStatusSelect?.value !== 'placeno' || !findingPaidAmountInput) {
+                    return;
+                }
+
+                const findingTotal = resolveFindingTotal();
+                if (!findingPaidAmountInput.value || Number(findingPaidAmountInput.value) === 0) {
+                    findingPaidAmountInput.value = String(findingTotal);
+                }
+            };
+
+            const toggleFindingPaymentBlocks = () => {
+                const status = findingPaymentStatusSelect?.value || 'neplaceno';
+                if (findingPaymentMethodWrap) {
+                    findingPaymentMethodWrap.style.display = status === 'neplaceno' ? 'none' : 'block';
+                }
+                if (findingUnpaidReasonWrap) {
+                    findingUnpaidReasonWrap.style.display = status === 'neplaceno' ? 'block' : 'none';
+                }
+
+                if (status === 'neplaceno' && findingPaymentMethodSelect) {
+                    findingPaymentMethodSelect.value = '';
+                }
+
+                syncFindingPaidForFullyPaid();
+            };
+
             if (serviceNameInput && serviceIdInput && serviceSuggestions) {
                 serviceNameInput.addEventListener('input', renderServiceSuggestions);
                 serviceNameInput.addEventListener('focus', renderServiceSuggestions);
@@ -1064,8 +1152,22 @@
                     const price = selected.getAttribute('data-price');
                     if (price !== null) {
                         unitPriceInput.value = price;
+                        syncFindingPaidForFullyPaid();
                     }
                 });
+            }
+
+            if (findingQuantityInput) {
+                findingQuantityInput.addEventListener('input', syncFindingPaidForFullyPaid);
+            }
+
+            if (unitPriceInput) {
+                unitPriceInput.addEventListener('input', syncFindingPaidForFullyPaid);
+            }
+
+            if (findingPaymentStatusSelect) {
+                findingPaymentStatusSelect.addEventListener('change', toggleFindingPaymentBlocks);
+                toggleFindingPaymentBlocks();
             }
 
             if (patientNameInput && patientIdInput && patientSuggestions) {

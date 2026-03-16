@@ -41,6 +41,10 @@ class StoreDailyReportFindingItemRequest extends FormRequest
             'finding_patient_name' => ['nullable', 'string', 'min:2', 'max:255'],
             'quantity' => ['required', 'integer', 'min:1'],
             'unit_price' => ['nullable', 'numeric', 'min:0'],
+            'finding_payment_status' => ['required', 'string', Rule::in(['placeno', 'neplaceno', 'djelimicno_placeno'])],
+            'finding_payment_method' => ['nullable', 'string', 'max:50'],
+            'finding_paid_amount' => ['nullable', 'numeric', 'min:0'],
+            'finding_unpaid_reason' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -54,6 +58,20 @@ class StoreDailyReportFindingItemRequest extends FormRequest
             'finding_patient_name' => $this->filled('finding_patient_name')
                 ? trim((string) $this->input('finding_patient_name'))
                 : null,
+            'finding_payment_status' => trim((string) $this->input('finding_payment_status', '')),
+            'finding_payment_method' => $this->filled('finding_payment_method')
+                ? trim((string) $this->input('finding_payment_method'))
+                : null,
+            'finding_unpaid_reason' => $this->filled('finding_unpaid_reason')
+                ? trim((string) $this->input('finding_unpaid_reason'))
+                : null,
         ]);
+    }
+
+    public function messages(): array
+    {
+        return [
+            'finding_payment_status.in' => 'Status placanja mora biti placeno, neplaceno ili djelimicno_placeno.',
+        ];
     }
 }

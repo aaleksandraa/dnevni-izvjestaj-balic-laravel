@@ -452,6 +452,7 @@ class DailyReportController extends Controller
         $unitPrice = $validated['unit_price'] ?? $finding->unit_price ?? 0;
         $unitPrice = (float) $unitPrice;
         $totalPrice = round($unitPrice * $quantity, 2);
+        [$paymentStatus, $paidAmount, $remainingAmount, $paymentMethod, $unpaidReason] = $this->normalizeFindingPaymentInput($totalPrice, $validated);
 
         $findingItem = DailyReportFindingItem::query()->create([
             'daily_report_id' => $dailyReport->id,
@@ -460,6 +461,11 @@ class DailyReportController extends Controller
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'total_price' => $totalPrice,
+            'payment_status' => $paymentStatus,
+            'payment_method' => $paymentMethod,
+            'paid_amount' => $paidAmount,
+            'remaining_amount' => $remainingAmount,
+            'unpaid_reason' => $unpaidReason,
             'notes' => $validated['notes'] ?? null,
             'entered_by_user_id' => $actor?->id,
         ]);
@@ -775,6 +781,70 @@ class DailyReportController extends Controller
     }
 
     /**
+     * @param array<string, mixed> $validated
+     * @return array{string, float, float, string|null, string|null}
+     */
+    private function normalizeFindingPaymentInput(float $totalPrice, array $validated): array
+    {
+        $paymentStatus = (string) ($validated['finding_payment_status'] ?? 'neplaceno');
+        $paidAmount = (float) ($validated['finding_paid_amount'] ?? 0);
+        $paymentMethod = $validated['finding_payment_method'] ?? null;
+        $unpaidReason = $validated['finding_unpaid_reason'] ?? null;
+
+        if ($paymentStatus === 'neplaceno') {
+            if (trim((string) $unpaidReason) === '') {
+                throw ValidationException::withMessages([
+                    'finding_unpaid_reason' => 'Razlog neplacanja je obavezan za neplacene nalaze.',
+                ]);
+            }
+
+            return ['neplaceno', 0, round($totalPrice, 2), null, trim((string) $unpaidReason)];
+        }
+
+        if ($paymentMethod === null || trim((string) $paymentMethod) === '') {
+            throw ValidationException::withMessages([
+                'finding_payment_method' => 'Nacin placanja je obavezan za placene i djelimicno placene nalaze.',
+            ]);
+        }
+
+        if ($paidAmount > $totalPrice) {
+            throw ValidationException::withMessages([
+                'finding_paid_amount' => 'Placeni iznos ne moze biti veci od ukupne cijene nalaza.',
+            ]);
+        }
+
+        if ($paymentStatus === 'placeno') {
+            if (round($paidAmount, 2) !== round($totalPrice, 2)) {
+                throw ValidationException::withMessages([
+                    'finding_paid_amount' => 'Za status placeno, placeni iznos mora biti jednak ukupnoj cijeni nalaza.',
+                ]);
+            }
+
+            return ['placeno', round($paidAmount, 2), 0, trim((string) $paymentMethod), null];
+        }
+
+        if ($paymentStatus === 'djelimicno_placeno') {
+            if ($paidAmount <= 0 || $paidAmount >= $totalPrice) {
+                throw ValidationException::withMessages([
+                    'finding_paid_amount' => 'Za djelimicno placanje iznos mora biti veci od 0 i manji od pune cijene nalaza.',
+                ]);
+            }
+
+            return [
+                'djelimicno_placeno',
+                round($paidAmount, 2),
+                round($totalPrice - $paidAmount, 2),
+                trim((string) $paymentMethod),
+                trim((string) ($unpaidReason ?? 'Djelimicno placeno')),
+            ];
+        }
+
+        throw ValidationException::withMessages([
+            'finding_payment_status' => 'Nepodrzan status placanja.',
+        ]);
+    }
+
+    /**
      * @return array<string, float|int>
      */
     private function summary(DailyReport $dailyReport): array
@@ -783,8 +853,8 @@ class DailyReportController extends Controller
         $findingItems = $dailyReport->findingItems;
 
         $servicesAmount = (float) $serviceItems->sum('item_price');
-        $paidAmount = (float) $serviceItems->sum('paid_amount');
-        $remainingAmount = (float) $serviceItems->sum('remaining_amount');
+        $paidAmount = (float) $serviceItems->sum('paid_amount') + (float) $findingItems->sum('paid_amount');
+        $remainingAmount = (float) $serviceItems->sum('remaining_amount') + (float) $findingItems->sum('remaining_amount');
         $findingsAmount = (float) $findingItems->sum('total_price');
 
         return [
@@ -847,6 +917,11 @@ class DailyReportController extends Controller
             'quantity' => (int) $findingItem->quantity,
             'unit_price' => (float) $findingItem->unit_price,
             'total_price' => (float) $findingItem->total_price,
+            'payment_status' => $findingItem->payment_status,
+            'payment_method' => $findingItem->payment_method,
+            'paid_amount' => (float) $findingItem->paid_amount,
+            'remaining_amount' => (float) $findingItem->remaining_amount,
+            'unpaid_reason' => $findingItem->unpaid_reason,
             'notes' => $findingItem->notes,
             'entered_by_user_id' => $findingItem->entered_by_user_id !== null
                 ? (int) $findingItem->entered_by_user_id
@@ -922,10 +997,27 @@ class DailyReportController extends Controller
                 true
             )
         );
+        $paidFindingItems = $findingItems->filter(
+            fn (DailyReportFindingItem $item): bool => in_array(
+                (string) $item->payment_status,
+                ['placeno', 'djelimicno_placeno'],
+                true
+            )
+        );
 
         $byPaymentMethod = $paidItems
-            ->groupBy(function (DailyReportItem $item): string {
-                $method = trim((string) ($item->payment_method ?? ''));
+            ->map(fn (DailyReportItem $item): array => [
+                'payment_method' => trim((string) ($item->payment_method ?? '')),
+                'paid_amount' => (float) $item->paid_amount,
+            ])
+            ->concat(
+                $paidFindingItems->map(fn (DailyReportFindingItem $item): array => [
+                    'payment_method' => trim((string) ($item->payment_method ?? '')),
+                    'paid_amount' => (float) $item->paid_amount,
+                ])
+            )
+            ->groupBy(function ($item): string {
+                $method = trim((string) ($item['payment_method'] ?? ''));
 
                 return $method !== '' ? $method : 'nepoznato';
             })
@@ -943,8 +1035,12 @@ class DailyReportController extends Controller
 
         $fullyUnpaidItems = $items->where('payment_status', 'neplaceno');
         $partiallyPaidItems = $items->where('payment_status', 'djelimicno_placeno');
+        $fullyUnpaidFindingItems = $findingItems->where('payment_status', 'neplaceno');
+        $partiallyPaidFindingItems = $findingItems->where('payment_status', 'djelimicno_placeno');
         $servicesAmount = (float) $items->sum('item_price');
         $findingsAmount = (float) $findingItems->sum('total_price');
+        $paidAmount = (float) $items->sum('paid_amount') + (float) $findingItems->sum('paid_amount');
+        $remainingAmount = (float) $items->sum('remaining_amount') + (float) $findingItems->sum('remaining_amount');
 
         return [
             'total_items_count' => $items->count(),
@@ -953,12 +1049,12 @@ class DailyReportController extends Controller
             'findings_count' => (int) $findingItems->sum('quantity'),
             'findings_amount' => round($findingsAmount, 2),
             'total_amount' => round($servicesAmount + $findingsAmount, 2),
-            'paid_amount' => round((float) $items->sum('paid_amount'), 2),
-            'remaining_amount' => round((float) $items->sum('remaining_amount'), 2),
-            'fully_unpaid_count' => $fullyUnpaidItems->count(),
-            'fully_unpaid_amount' => round((float) $fullyUnpaidItems->sum('remaining_amount'), 2),
-            'partially_paid_count' => $partiallyPaidItems->count(),
-            'partially_paid_remaining_amount' => round((float) $partiallyPaidItems->sum('remaining_amount'), 2),
+            'paid_amount' => round($paidAmount, 2),
+            'remaining_amount' => round($remainingAmount, 2),
+            'fully_unpaid_count' => $fullyUnpaidItems->count() + $fullyUnpaidFindingItems->count(),
+            'fully_unpaid_amount' => round((float) $fullyUnpaidItems->sum('remaining_amount') + (float) $fullyUnpaidFindingItems->sum('remaining_amount'), 2),
+            'partially_paid_count' => $partiallyPaidItems->count() + $partiallyPaidFindingItems->count(),
+            'partially_paid_remaining_amount' => round((float) $partiallyPaidItems->sum('remaining_amount') + (float) $partiallyPaidFindingItems->sum('remaining_amount'), 2),
             'by_service' => $byService,
             'by_doctor' => $byDoctor,
             'by_payment_method' => $byPaymentMethod,
